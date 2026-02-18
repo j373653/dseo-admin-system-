@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase'
+import { detectSearchIntent, generateClusterName, getIntentBadge, SearchIntent, suggestUrlStructure } from '@/lib/search-intent'
 
 interface Cluster {
   id: string
@@ -10,23 +11,34 @@ interface Cluster {
   description: string
   keyword_count: number
   search_volume_total: number
+  intent: string
   created_at: string
 }
 
 interface Keyword {
   id: string
   keyword: string
+  search_volume: number
+  difficulty: number
   cluster_id: string | null
+}
+
+interface IntentGroup {
+  intent: SearchIntent;
+  keywords: Keyword[];
+  suggestedName: string;
 }
 
 export default function ClustersPage() {
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [unclusteredKeywords, setUnclusteredKeywords] = useState<Keyword[]>([])
+  const [intentGroups, setIntentGroups] = useState<IntentGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newClusterName, setNewClusterName] = useState('')
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [autoClustering, setAutoClustering] = useState(false)
+  const [selectedIntent, setSelectedIntent] = useState<SearchIntent | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -43,14 +55,19 @@ export default function ClustersPage() {
       if (clustersError) throw clustersError
       setClusters(clustersData || [])
 
-      // Fetch unclustered keywords (all of them)
+      // Fetch unclustered keywords
       const { data: keywordsData, error: keywordsError } = await supabaseClient
         .from('d_seo_admin_raw_keywords')
-        .select('id, keyword, cluster_id')
+        .select('id, keyword, search_volume, difficulty, cluster_id')
         .is('cluster_id', null)
 
       if (keywordsError) throw keywordsError
-      setUnclusteredKeywords(keywordsData || [])
+      const keywords = keywordsData || []
+      setUnclusteredKeywords(keywords)
+
+      // Agrupar por intención
+      const groups = analyzeIntents(keywords)
+      setIntentGroups(groups)
     } catch (err) {
       console.error('Error fetching data:', err)
     } finally {
@@ -58,33 +75,63 @@ export default function ClustersPage() {
     }
   }
 
-  const createCluster = async () => {
-    if (!newClusterName.trim()) return
+  const analyzeIntents = (keywords: Keyword[]): IntentGroup[] => {
+    const groups: { [key in SearchIntent]?: Keyword[] } = {}
+
+    keywords.forEach(kw => {
+      const { intent } = detectSearchIntent(kw.keyword)
+      if (!groups[intent]) {
+        groups[intent] = []
+      }
+      groups[intent]!.push(kw)
+    })
+
+    return (Object.entries(groups) as [SearchIntent, Keyword[]][])
+      .map(([intent, keywords]) => ({
+        intent,
+        keywords,
+        suggestedName: generateClusterName(keywords.map(k => k.keyword))
+      }))
+      .filter(group => group.keywords.length >= 2)
+      .sort((a, b) => b.keywords.length - a.keywords.length)
+  }
+
+  const createCluster = async (intent?: SearchIntent) => {
+    const keywordsToCluster = intent 
+      ? intentGroups.find(g => g.intent === intent)?.keywords || []
+      : selectedKeywords.length > 0 
+        ? unclusteredKeywords.filter(k => selectedKeywords.includes(k.id))
+        : []
+
+    if (keywordsToCluster.length === 0) return
+
+    const name = newClusterName || (intent ? intentGroups.find(g => g.intent === intent)?.suggestedName : '')
+    if (!name) return
 
     try {
       const { data, error } = await supabaseClient
         .from('d_seo_admin_keyword_clusters')
         .insert({
-          name: newClusterName,
-          description: '',
-          keyword_count: selectedKeywords.length
+          name,
+          description: `Cluster basado en intención: ${intent || 'manual'}`,
+          keyword_count: keywordsToCluster.length,
+          intent: intent || 'manual'
         })
         .select()
         .single()
 
       if (error) throw error
 
-      // Assign selected keywords to new cluster
-      if (selectedKeywords.length > 0) {
-        await supabaseClient
-          .from('d_seo_admin_raw_keywords')
-          .update({ cluster_id: data.id, status: 'clustered' })
-          .in('id', selectedKeywords)
-      }
+      // Assign keywords to new cluster
+      await supabaseClient
+        .from('d_seo_admin_raw_keywords')
+        .update({ cluster_id: data.id, status: 'clustered' })
+        .in('id', keywordsToCluster.map(k => k.id))
 
       setNewClusterName('')
       setSelectedKeywords([])
       setShowCreateModal(false)
+      setSelectedIntent(null)
       fetchData()
     } catch (err) {
       console.error('Error creating cluster:', err)
@@ -92,29 +139,19 @@ export default function ClustersPage() {
     }
   }
 
-  const autoCluster = async () => {
+  const autoClusterByIntent = async () => {
     setAutoClustering(true)
     try {
-      // Simple auto-clustering based on common words
-      const keywords = unclusteredKeywords.map(k => ({ id: k.id, keyword: k.keyword.toLowerCase() }))
-      
-      // Group by first word
-      const groups: { [key: string]: string[] } = {}
-      keywords.forEach(kw => {
-        const firstWord = kw.keyword.split(' ')[0]
-        if (!groups[firstWord]) groups[firstWord] = []
-        groups[firstWord].push(kw.id)
-      })
-
-      // Create clusters for groups with 3+ keywords
-      for (const [word, ids] of Object.entries(groups)) {
-        if (ids.length >= 3) {
+      // Crear clusters por cada grupo de intención con 3+ keywords
+      for (const group of intentGroups) {
+        if (group.keywords.length >= 3) {
           const { data: cluster } = await supabaseClient
             .from('d_seo_admin_keyword_clusters')
             .insert({
-              name: word.charAt(0).toUpperCase() + word.slice(1),
-              description: `Cluster automático para "${word}"`,
-              keyword_count: ids.length
+              name: group.suggestedName,
+              description: `Cluster automático - Intención: ${group.intent} (${group.keywords.length} keywords)`,
+              keyword_count: group.keywords.length,
+              intent: group.intent
             })
             .select()
             .single()
@@ -122,12 +159,12 @@ export default function ClustersPage() {
           await supabaseClient
             .from('d_seo_admin_raw_keywords')
             .update({ cluster_id: cluster.id, status: 'clustered' })
-            .in('id', ids)
+            .in('id', group.keywords.map(k => k.id))
         }
       }
 
       fetchData()
-      alert('Clustering automático completado')
+      alert(`Clustering completado: ${intentGroups.filter(g => g.keywords.length >= 3).length} clusters creados`)
     } catch (err) {
       console.error('Error auto-clustering:', err)
       alert('Error durante el clustering automático')
@@ -163,11 +200,11 @@ export default function ClustersPage() {
         </div>
         <div className="flex space-x-3">
           <button
-            onClick={autoCluster}
+            onClick={autoClusterByIntent}
             disabled={autoClustering || unclusteredKeywords.length === 0}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50"
           >
-            {autoClustering ? 'Procesando...' : 'Auto-Cluster'}
+            {autoClustering ? 'Procesando...' : 'Auto-Cluster por Intención'}
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -178,28 +215,67 @@ export default function ClustersPage() {
         </div>
       </div>
 
-      {/* Clusters Grid */}
-      {clusters.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {clusters.map((cluster) => (
-            <div key={cluster.id} className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{cluster.name}</h3>
-              {cluster.description && (
-                <p className="text-sm text-gray-600 mb-4">{cluster.description}</p>
-              )}
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>{cluster.keyword_count} keywords</span>
-                <span>{cluster.search_volume_total?.toLocaleString() || 0} vol. total</span>
-              </div>
-            </div>
-          ))}
+      {/* Intent Groups Preview */}
+      {intentGroups.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Análisis de Intención</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {intentGroups.map((group) => {
+              const badge = getIntentBadge(group.intent)
+              return (
+                <div key={group.intent} className="bg-white rounded-lg shadow p-4 border-2 border-transparent hover:border-indigo-300 cursor-pointer transition-all"
+                  onClick={() => setSelectedIntent(group.intent)}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+                      {badge.label}
+                    </span>
+                    <span className="text-2xl font-bold text-gray-900">{group.keywords.length}</span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 mb-1">{group.suggestedName}</p>
+                  <p className="text-xs text-gray-500">{badge.description}</p>
+                  {group.keywords.length >= 3 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        createCluster(group.intent)
+                      }}
+                      className="mt-3 w-full px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-sm hover:bg-indigo-200 transition-colors"
+                    >
+                      Crear Cluster
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
-      ) : (
-        <div className="bg-gray-50 rounded-lg p-8 text-center mb-8">
-          <p className="text-gray-500">No hay clusters creados todavía</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Usa "Auto-Cluster" para agrupar automáticamente o crea clusters manualmente
-          </p>
+      )}
+
+      {/* Existing Clusters */}
+      {clusters.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Clusters Existentes</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {clusters.map((cluster) => (
+              <div key={cluster.id} className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="text-lg font-semibold text-gray-900">{cluster.name}</h4>
+                  {cluster.intent && (
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getIntentBadge(cluster.intent as SearchIntent).color}`}>
+                      {getIntentBadge(cluster.intent as SearchIntent).label}
+                    </span>
+                  )}
+                </div>
+                {cluster.description && (
+                  <p className="text-sm text-gray-600 mb-4">{cluster.description}</p>
+                )}
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>{cluster.keyword_count} keywords</span>
+                  <span>{cluster.search_volume_total?.toLocaleString() || 0} vol. total</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -209,19 +285,64 @@ export default function ClustersPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Keywords sin clasificar ({unclusteredKeywords.length})
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
-            {unclusteredKeywords.map((kw) => (
-              <label key={kw.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedKeywords.includes(kw.id)}
-                  onChange={() => toggleKeywordSelection(kw.id)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="text-sm text-gray-700 truncate">{kw.keyword}</span>
-              </label>
-            ))}
+          
+          {/* Filter by intent */}
+          {selectedIntent && (
+            <div className="mb-4 p-3 bg-indigo-50 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-indigo-900">
+                Mostrando keywords con intención: <strong>{getIntentBadge(selectedIntent).label}</strong>
+              </span>
+              <button 
+                onClick={() => setSelectedIntent(null)}
+                className="text-indigo-600 hover:text-indigo-800 text-sm"
+              >
+                Mostrar todas
+              </button>
+            </div>
+          )}
+
+          <div className="max-h-96 overflow-y-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Keyword</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Intención</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Volumen</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Dificultad</th>
+                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Seleccionar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {unclusteredKeywords
+                  .filter(kw => !selectedIntent || detectSearchIntent(kw.keyword).intent === selectedIntent)
+                  .map((kw) => {
+                    const intent = detectSearchIntent(kw.keyword)
+                    const badge = getIntentBadge(intent.intent)
+                    return (
+                      <tr key={kw.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 text-sm text-gray-900">{kw.keyword}</td>
+                        <td className="px-4 py-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-500">{kw.search_volume || '-'}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500">{kw.difficulty || '-'}</td>
+                        <td className="px-4 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedKeywords.includes(kw.id)}
+                            onChange={() => toggleKeywordSelection(kw.id)}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            </table>
           </div>
+
           {selectedKeywords.length > 0 && (
             <div className="mt-4 pt-4 border-t">
               <p className="text-sm text-gray-600 mb-2">
@@ -266,7 +387,7 @@ export default function ClustersPage() {
                 Cancelar
               </button>
               <button
-                onClick={createCluster}
+                onClick={() => createCluster()}
                 disabled={!newClusterName.trim()}
                 className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors disabled:opacity-50"
               >
