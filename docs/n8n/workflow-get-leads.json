@@ -1,0 +1,90 @@
+{
+  "name": "DSEO - Get Leads (API para Panel)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "get-leads",
+        "responseMode": "responseNode"
+      },
+      "name": "Webhook GET Leads",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "get-leads"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, email, name, company, phone, source, landing_page, utm_source, utm_medium, utm_campaign, status, lead_score, created_at FROM dseo_admin.leads ORDER BY created_at DESC LIMIT 100",
+        "options": {}
+      },
+      "name": "Query PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "host": "10.0.7.3",
+          "port": 5432,
+          "database": "postgres",
+          "user": "postgres",
+          "password": "xV4L26R1a5oSjUh5sr60ZGSpe4dGHhO3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "name": "Response JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook GET Leads": {
+      "main": [
+        [
+          {
+            "node": "Query PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Response JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

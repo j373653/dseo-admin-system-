@@ -1,0 +1,88 @@
+{
+  "name": "DSEO - Nuevo Lead",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-lead",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-node",
+      "name": "Webhook Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "new-lead"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dseo_admin.leads (email, name, company, phone, source, landing_page, utm_source, utm_medium, utm_campaign, utm_content, message, lead_score, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'new', NOW()) RETURNING id",
+        "options": {
+          "mode": "multiple"
+        },
+        "parameters": [
+          "={{ $json.body.email }}",
+          "={{ $json.body.name }}",
+          "={{ $json.body.company }}",
+          "={{ $json.body.phone }}",
+          "={{ $json.body.source || 'website' }}",
+          "={{ $json.body.landing_page }}",
+          "={{ $json.body.utm_source }}",
+          "={{ $json.body.utm_medium }}",
+          "={{ $json.body.utm_campaign }}",
+          "={{ $json.body.utm_content }}",
+          "={{ $json.body.message }}",
+          "={{ $json.body.lead_score || 0 }}"
+        ]
+      },
+      "id": "postgres-node",
+      "name": "Insert Lead DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": "supabase-postgres"
+      }
+    },
+    {
+      "parameters": {
+        "options": {},
+        "content": "🎯 NUEVO LEAD RECIBIDO\n\n📧 Email: {{ $('Webhook Lead').item.json.body.email }}\n👤 Nombre: {{ $('Webhook Lead').item.json.body.name || 'No especificado' }}\n🏢 Empresa: {{ $('Webhook Lead').item.json.body.company || 'No especificada' }}\n\n📊 Score: {{ $('Webhook Lead').item.json.body.lead_score || 0 }}/100\n🌐 Fuente: {{ $('Webhook Lead').item.json.body.source || 'website' }}\n📄 Landing: {{ $('Webhook Lead').item.json.body.landing_page || 'No especificada' }}\n\n📍 UTM:\n- Source: {{ $('Webhook Lead').item.json.body.utm_source || 'N/A' }}\n- Medium: {{ $('Webhook Lead').item.json.body.utm_medium || 'N/A' }}\n- Campaign: {{ $('Webhook Lead').item.json.body.utm_campaign || 'N/A' }}\n\n📝 Mensaje: {{ $('Webhook Lead').item.json.body.message ? $('Webhook Lead').item.json.body.message.substring(0, 200) + ($('Webhook Lead').item.json.body.message.length > 200 ? '...' : '') : 'Sin mensaje' }}\n\n⏰ Recibido: {{ $now.format('DD/MM/YYYY HH:mm:ss') }}",
+        "subject": "🎯 Nuevo Lead: {{ $('Webhook Lead').item.json.body.email }}",
+        "to": "web@d-seo.es"
+      },
+      "id": "email-node",
+      "name": "Email Notificación",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "credentials": {
+        "smtp": "banahosting-smtp"
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Lead recibido correctamente\",\n  \"leadId\": \"{{ $('Insert Lead DB').item.json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "respond-node",
+      "name": "Response Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "lead-system",
+      "name": "Lead System"
+    }
+  ]
+}

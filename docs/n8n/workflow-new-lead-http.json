@@ -1,0 +1,153 @@
+{
+  "name": "DSEO - Nuevo Lead (HTTP API)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-lead",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-node",
+      "name": "Webhook Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "new-lead"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://supabase.keepmyweb.com/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $credentials.httpHeaderAuth.value }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.httpHeaderAuth.value }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ $json.body.email }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $json.body.name }}"
+            },
+            {
+              "name": "company",
+              "value": "={{ $json.body.company }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.body.phone }}"
+            },
+            {
+              "name": "source",
+              "value": "={{ $json.body.source || 'website' }}"
+            },
+            {
+              "name": "landing_page",
+              "value": "={{ $json.body.landing_page }}"
+            },
+            {
+              "name": "utm_source",
+              "value": "={{ $json.body.utm_source }}"
+            },
+            {
+              "name": "utm_medium",
+              "value": "={{ $json.body.utm_medium }}"
+            },
+            {
+              "name": "utm_campaign",
+              "value": "={{ $json.body.utm_campaign }}"
+            },
+            {
+              "name": "utm_content",
+              "value": "={{ $json.body.utm_content }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "lead_score",
+              "value": "={{ $json.body.lead_score || 0 }}"
+            },
+            {
+              "name": "status",
+              "value": "new"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-node",
+      "name": "Insert Lead API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "credentials": {
+        "httpHeaderAuth": "supabase-api-key"
+      }
+    },
+    {
+      "parameters": {
+        "options": {},
+        "content": "🎯 NUEVO LEAD RECIBIDO\n\n📧 Email: {{ $('Webhook Lead').item.json.body.email }}\n👤 Nombre: {{ $('Webhook Lead').item.json.body.name || 'No especificado' }}\n🏢 Empresa: {{ $('Webhook Lead').item.json.body.company || 'No especificada' }}\n\n📊 Score: {{ $('Webhook Lead').item.json.body.lead_score || 0 }}/100\n🌐 Fuente: {{ $('Webhook Lead').item.json.body.source || 'website' }}\n📄 Landing: {{ $('Webhook Lead').item.json.body.landing_page || 'No especificada' }}\n\n📍 UTM:\n- Source: {{ $('Webhook Lead').item.json.body.utm_source || 'N/A' }}\n- Medium: {{ $('Webhook Lead').item.json.body.utm_medium || 'N/A' }}\n- Campaign: {{ $('Webhook Lead').item.json.body.utm_campaign || 'N/A' }}\n\n📝 Mensaje: {{ $('Webhook Lead').item.json.body.message ? $('Webhook Lead').item.json.body.message.substring(0, 200) + ($('Webhook Lead').item.json.body.message.length > 200 ? '...' : '') : 'Sin mensaje' }}\n\n⏰ Recibido: {{ $now.format('DD/MM/YYYY HH:mm:ss') }}",
+        "subject": "🎯 Nuevo Lead: {{ $('Webhook Lead').item.json.body.email }}",
+        "to": "web@d-seo.es"
+      },
+      "id": "email-node",
+      "name": "Email Notificación",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "credentials": {
+        "smtp": "banahosting-smtp"
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Lead recibido correctamente\",\n  \"leadId\": \"{{ $('Insert Lead API').item.json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "respond-node",
+      "name": "Response Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "lead-system",
+      "name": "Lead System"
+    }
+  ]
+}

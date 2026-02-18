@@ -1,0 +1,28 @@
+# Configuración D-SEO - Optimización Apache (BanaHosting)
+
+# 1. Forzar HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 2. URLs Limpias y Manejo de Directorios (Next.js trailingSlash)
+# No es necesario gran cosa aquí ya que Next.js generas carpetas/index.html
+# Pero evitamos que se vea el .html si alguien lo escribe
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}\.html -f
+RewriteRule ^(.*)$ $1.html [NC,L]
+
+# 3. Manejo de Errores 404 personalizado
+# Importante: Apuntar al archivo generado por Next.js
+ErrorDocument 404 /404/index.html
+
+# 4. Cache Control (Optimización SEO Performance)
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 month"
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>
