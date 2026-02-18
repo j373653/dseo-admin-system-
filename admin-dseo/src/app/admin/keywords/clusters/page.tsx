@@ -43,12 +43,11 @@ export default function ClustersPage() {
       if (clustersError) throw clustersError
       setClusters(clustersData || [])
 
-      // Fetch unclustered keywords
+      // Fetch unclustered keywords (all of them)
       const { data: keywordsData, error: keywordsError } = await supabaseClient
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword, cluster_id')
         .is('cluster_id', null)
-        .limit(50)
 
       if (keywordsError) throw keywordsError
       setUnclusteredKeywords(keywordsData || [])
