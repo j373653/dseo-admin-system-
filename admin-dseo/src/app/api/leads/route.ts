@@ -32,19 +32,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Insertar lead en Supabase
-    const { data, error } = await getSupabaseAdmin()
+    const result = await getSupabaseAdmin()
       .from('d_seo_admin_leads')
       .insert(leadData as any)
       .select()
       .single()
 
-    if (error) {
-      console.error('Supabase error:', error)
+    if (result.error) {
+      console.error('Supabase error:', result.error)
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: result.error.message },
         { status: 500 }
       )
     }
+
+    const data = result.data as any
 
     // Enviar email de notificación
     try {
