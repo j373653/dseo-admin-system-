@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createLeadInSupabase } from '@/lib/supabase-api'
+import { supabaseAdmin } from '@/lib/supabase'
 import { sendLeadNotification } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
@@ -32,23 +32,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Insertar lead en Supabase
-    const result = await createLeadInSupabase(leadData)
+    const { data, error } = await supabaseAdmin
+      .from('d_seo_admin_leads')
+      .insert(leadData)
+      .select()
+      .single()
 
-    if (!result.success) {
+    if (error) {
+      console.error('Supabase error:', error)
       return NextResponse.json(
-        { success: false, error: result.error },
+        { success: false, error: error.message },
         { status: 500 }
       )
     }
 
     // Enviar email de notificación
-    await sendLeadNotification(result.data)
+    try {
+      await sendLeadNotification(data)
+    } catch (emailError) {
+      console.error('Email error:', emailError)
+      // No fallamos si el email no se envía
+    }
 
     return NextResponse.json(
       { 
         success: true, 
         message: 'Lead received successfully',
-        leadId: result.data?.id 
+        leadId: data?.id 
       },
       { status: 200 }
     )
