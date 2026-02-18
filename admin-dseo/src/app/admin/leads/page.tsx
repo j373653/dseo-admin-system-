@@ -1,8 +1,41 @@
-import { getLeadsFromSupabase } from '@/lib/supabase-api'
+'use client'
 
-export default async function LeadsPage() {
-  const result = await getLeadsFromSupabase()
-  const leads = result.data || []
+import { useEffect, useState } from 'react'
+import { supabaseClient } from '@/lib/supabase'
+
+export default function LeadsPage() {
+  const [leads, setLeads] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const fetchLeads = async () => {
+      try {
+        const { data, error } = await supabaseClient
+          .from('d_seo_admin_leads')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100)
+
+        if (error) throw error
+        setLeads(data || [])
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLeads()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -11,9 +44,9 @@ export default async function LeadsPage() {
         <p className="text-gray-600">Visualiza y gestiona los leads capturados desde Supabase</p>
       </div>
 
-      {!result.success ? (
+      {error ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Error al cargar los leads: {result.error}</p>
+          <p className="text-red-800">Error al cargar los leads: {error}</p>
           <p className="text-sm text-red-600 mt-2">
             Verifica la conexión con Supabase y que las tablas existan en el schema public.
           </p>
