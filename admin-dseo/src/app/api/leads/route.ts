@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     // Insertar lead en Supabase
     const { data, error } = await getSupabaseAdmin()
       .from('d_seo_admin_leads')
-      .insert(leadData)
+      .insert(leadData as any)
       .select()
       .single()
 
