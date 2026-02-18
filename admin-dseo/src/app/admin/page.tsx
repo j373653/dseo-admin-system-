@@ -28,11 +28,16 @@ export default function AdminDashboard() {
         .select('*', { count: 'exact', head: true })
         .gte('created_at', sevenDaysAgo.toISOString())
 
-      // Contar keywords
-      const { count: totalKeywords } = await supabaseClient
-        .from('d_seo_admin_raw_keywords')
-        .select('*', { count: 'exact', head: true })
-        .catch(() => ({ count: 0 }))
+        // Contar keywords (try-catch para tabla que puede no existir)
+        let totalKeywords = 0
+        try {
+          const result = await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .select('*', { count: 'exact', head: true })
+          totalKeywords = result.count || 0
+        } catch {
+          totalKeywords = 0
+        }
 
       setStats({
         totalLeads: totalLeads || 0,
