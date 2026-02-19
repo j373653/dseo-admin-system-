@@ -102,6 +102,12 @@ export default function AdminLayout({
           >
             Contenido Web
           </Link>
+          <Link
+            href="/admin/keywords/strategy"
+            className={`block px-6 py-3 hover:bg-gray-800 pl-10 ${pathname.startsWith('/admin/keywords/strategy') ? 'bg-gray-800' : ''}`}
+          >
+            Estrategia
+          </Link>
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-6">

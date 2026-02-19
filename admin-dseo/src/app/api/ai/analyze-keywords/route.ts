@@ -7,6 +7,7 @@ interface KeywordAnalysis {
   confidence: number
   reasoning: string
   contentType: string
+  content_type_target: 'service' | 'blog' | 'landing'
 }
 
 const MODEL = 'gemini-2.5-flash-lite'
@@ -33,11 +34,16 @@ Devuelve JSON con array "analyses". Cada elemento:
 - confidence: 0.0-1.0
 - reasoning: max 6 palabras espanol
 - contentType: categoria|blog|producto|landing|comparativa|guia|servicio
+- content_type_target: service|blog|landing (basado en intent + contentType)
+  * transactional -> service
+  * commercial + comparativa/review -> blog
+  * informational + guia/howto -> blog
+  * commercial + producto/servicio -> landing
 
 TOTAL: ${keywords.length} objetos en analyses[]
 
 JSON:
-{"analyses":[{"keyword":"...","cluster":"...","intent":"...","confidence":0.95,"reasoning":"...","contentType":"..."}]}`
+{"analyses":[{"keyword":"...","cluster":"...","intent":"...","confidence":0.95,"reasoning":"...","contentType":"...","content_type_target":"..."}]}`
 
   try {
     console.log(`[Attempt ${attempt}] Sending ${keywords.length} keywords to Gemini ${MODEL}...`)
