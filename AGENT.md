@@ -155,7 +155,52 @@ Ubicación: `.agent/skills/`
 
 ---
 
-## 5. Fases de Desarrollo Completadas
+## 5. Modelos de IA
+
+### Modelos Disponibles (Google AI Studio)
+
+| Modelo | Uso Principal | RPM | RPD | Costo |
+|--------|---------------|-----|-----|-------|
+| **Gemini 2.5 Flash** | Clustering/Contenido | 1,000/min | 10,000/día | $0 |
+| **Gemini 2.5 Flash Lite** | Procesamiento masivo | 4,000/min | Ilimitado | $0 |
+| **Gemini 2.5 Pro** | Análisis complejo | 150/min | 1,000/día | $0 |
+| **Gemini Embedding 1** | Similitud semántica | 3,000/min | Ilimitado | $0 |
+
+### Selección por Tarea
+
+| Tarea | Modelo Recomendado |
+|-------|-------------------|
+| Clustering keywords | Gemini 2.5 Flash |
+| Embeddings | Gemini Embedding 1 |
+| Generación contenido | Gemini 2.5 Flash |
+| Análisis complejo | Gemini 2.5 Pro |
+| Procesamiento masivo (>10k items) | Gemini 2.5 Flash Lite |
+
+### Rate Limits a Respetar
+
+- **PRO**: 150/min, 1,000/día (MUY LIMITADO - evitar para batch)
+- **Flash**: 1,000/min, 10,000/día (balanceado)
+- **Flash Lite**: 4,000/min, Ilimitado (para grandes volúmenes)
+- **Embedding**: 3,000/min, Ilimitado (semántica)
+
+### Estrategias Obligatorias
+
+1. **Rate Limiting**: Implementar en todas las APIs que usen IA
+2. **Batch Processing**: Usar lotes según volumen
+   - < 50 keywords → 1 request
+   - 50-200 → lotes de 50
+   - 200-500 → lotes de 100
+   - > 500 → lotes de 150-200
+3. **Monitoreo**: Trackear requests diarios
+4. **Fallback**: Plan B si se alcanzan límites
+
+### Documento de Referencia
+
+Ver `docs/AI_MODELS_GUIDE.md` para detalles completos sobre rates, estrategias y timeouts.
+
+---
+
+## 6. Fases de Desarrollo Completadas
 
 ### Fase 0: Infraestructura y Fixes
 - [x] Schema de base de datos (soft delete, persistencia IA, jerarquía)
@@ -202,9 +247,9 @@ Ubicación: `.agent/skills/`
 
 ---
 
-## 6. Integración Futura (Roadmap)
+## 7. Integración Futura (Roadmap)
 
-### 6.1 Visión General
+### 7.1 Visión General
 
 ```
 admin-dseo (CMS Headless)  →  d-seo-web (Web Pública)
@@ -227,7 +272,7 @@ admin-dseo (CMS Headless)  →  d-seo-web (Web Pública)
 | Media | **Blog** | Añadir sección blog al sitemap |
 | Baja | **Analytics** | Seguimiento de rendimiento de contenido |
 
-### 6.3 Notas sobre Integración
+### 7.3 Notas sobre Integración
 
 - Las 18 URLs del sitemap están **protegidas** y no deben modificarse
 - Las nuevas páginas pueden usar estructura:
@@ -237,7 +282,7 @@ admin-dseo (CMS Headless)  →  d-seo-web (Web Pública)
 
 ---
 
-## 7. Variables de Entorno
+## 8. Variables de Entorno
 
 ### admin-dseo
 ```
@@ -254,7 +299,7 @@ GOOGLE_AI_API_KEY=...
 
 ---
 
-## 8. Glosario
+## 9. Glosario
 
 | Término | Definición |
 |---------|------------|
@@ -267,7 +312,7 @@ GOOGLE_AI_API_KEY=...
 
 ---
 
-## 9. Notas para Agentes
+## 10. Notas para Agentes
 
 ### 9.1 Reglas de Oro
 
@@ -293,7 +338,7 @@ GOOGLE_AI_API_KEY=...
 
 ---
 
-## 10. Changelog
+## 11. Changelog
 
 | Fecha | Versión | Cambios |
 |-------|---------|---------|
