@@ -35,7 +35,7 @@ Devuelve JSON con array "analyses". Cada elemento:
 TOTAL: ${keywords.length} objetos en analyses[]
 
 JSON:
-{"analyses":[{"keyword":"...","cluster":"...","intent":"...","confidence":0.95,"reasoning":"...","contentType":"..."}]}``
+{"analyses":[{"keyword":"...","cluster":"...","intent":"...","confidence":0.95,"reasoning":"...","contentType":"..."}]}
 
   try {
     console.log(`[Attempt ${attempt}] Sending ${keywords.length} keywords to Gemini ${MODEL}...`)
