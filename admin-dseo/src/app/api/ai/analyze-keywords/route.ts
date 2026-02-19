@@ -58,6 +58,13 @@ Responde SOLO con un JSON válido con este formato:
   ]
 }`
 
+    console.log('Making request to OpenRouter...', {
+      model: 'deepseek/deepseek-chat:free',
+      keywordsCount: keywordsToAnalyze.length,
+      hasApiKey: !!apiKey,
+      apiKeyPrefix: apiKey?.substring(0, 10) + '...'
+    })
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -67,7 +74,7 @@ Responde SOLO con un JSON válido con este formato:
         'X-Title': 'D-SEO Admin'
       },
       body: JSON.stringify({
-        model: 'deepseek/deepseek-r1-0528:free',
+        model: 'deepseek/deepseek-chat:free',
         messages: [
           {
             role: 'system',
@@ -83,18 +90,25 @@ Responde SOLO con un JSON válido con este formato:
       })
     })
 
+    console.log('OpenRouter response status:', response.status, response.statusText)
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'No se pudo parsear respuesta de error' }))
-      console.error('OpenRouter API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorData
-      })
+      let errorText = ''
+      try {
+        const errorData = await response.json()
+        errorText = JSON.stringify(errorData)
+        console.error('OpenRouter API error JSON:', errorData)
+      } catch {
+        errorText = await response.text()
+        console.error('OpenRouter API error text:', errorText)
+      }
+      
       return NextResponse.json(
         { 
           error: 'Error en API de OpenRouter', 
-          details: errorData,
-          status: response.status
+          details: errorText,
+          status: response.status,
+          statusText: response.statusText
         },
         { status: 500 }
       )
