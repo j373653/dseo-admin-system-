@@ -43,7 +43,7 @@ export default function ClustersPage() {
   const [showAnalysisModal, setShowAnalysisModal] = useState(false)
   const [analysisIntent, setAnalysisIntent] = useState<SearchIntent>('unknown')
   const [deletingClusters, setDeletingClusters] = useState(false)
-  const [creatingCluster, setCreatingCluster] = useState<SearchIntent | null>(null)
+  const [creatingCluster, setCreatingCluster] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
