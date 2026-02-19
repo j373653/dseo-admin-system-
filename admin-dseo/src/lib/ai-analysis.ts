@@ -7,14 +7,12 @@ export interface AIKeywordAnalysis {
   confidence: number
   reasoning: string
   contentType: string
-  standaloneUrl: boolean
 }
 
 export interface AIAnalysisResult {
   success: boolean
   analyses: AIKeywordAnalysis[]
   clusterSuggestions: { [key: string]: string[] }
-  standaloneUrls: string[]
   totalAnalyzed: number
   totalRequested: number
   batchesProcessed?: number
@@ -60,13 +58,12 @@ export async function analyzeKeywordsWithAI(keywords: string[]): Promise<AIAnaly
  */
 export async function getAIClusterSuggestions(keywords: string[]): Promise<{
   clusters: { name: string; keywords: string[]; avgConfidence: number; contentType: string }[]
-  standalone: { keyword: string; contentType: string; reasoning: string }[]
   error?: string
 }> {
   const result = await analyzeKeywordsWithAI(keywords)
 
   if (!result.success) {
-    return { clusters: [], standalone: [], error: result.error }
+    return { clusters: [], error: result.error }
   }
 
   // Procesar clusters sugeridos
@@ -83,15 +80,5 @@ export async function getAIClusterSuggestions(keywords: string[]): Promise<{
     }
   })
 
-  // Procesar URLs individuales
-  const standalone = result.standaloneUrls.map(keyword => {
-    const analysis = result.analyses.find(a => a.keyword === keyword)
-    return {
-      keyword,
-      contentType: analysis?.contentType || 'landing',
-      reasoning: analysis?.reasoning || 'Merece página dedicada'
-    }
-  })
-
-  return { clusters, standalone }
+  return { clusters }
 }

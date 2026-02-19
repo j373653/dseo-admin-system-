@@ -286,18 +286,13 @@ function groupByPatterns(keywords: any[]) {
 function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
   // Agrupar por cluster
   const clusterGroups = new Map<string, AIKeywordAnalysis[]>()
-  const standalone: AIKeywordAnalysis[] = []
 
   analyses.forEach(analysis => {
-    if (analysis.standaloneUrl) {
-      standalone.push(analysis)
-    } else {
-      const cluster = analysis.cluster
-      if (!clusterGroups.has(cluster)) {
-        clusterGroups.set(cluster, [])
-      }
-      clusterGroups.get(cluster)!.push(analysis)
+    const cluster = analysis.cluster
+    if (!clusterGroups.has(cluster)) {
+      clusterGroups.set(cluster, [])
     }
+    clusterGroups.get(cluster)!.push(analysis)
   })
 
   return (
@@ -351,39 +346,6 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
           </div>
         </div>
       ))}
-
-      {/* Standalone URLs */}
-      {standalone.length > 0 && (
-        <div className="bg-yellow-50 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-yellow-900 mb-3 flex items-center">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            URLs individuales sugeridas
-            <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full">
-              {standalone.length} keywords
-            </span>
-          </h3>
-          <div className="bg-white rounded p-3">
-            <table className="min-w-full">
-              <thead>
-                <tr className="text-left text-xs text-gray-500">
-                  <th className="pb-2">Keyword</th>
-                  <th className="pb-2">Tipo Contenido</th>
-                  <th className="pb-2">Razón</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {standalone.map((item, idx) => (
-                  <tr key={idx} className="text-sm">
-                    <td className="py-2 text-gray-900 font-medium">{item.keyword}</td>
-                    <td className="py-2 text-gray-600 capitalize">{item.contentType}</td>
-                    <td className="py-2 text-gray-600 text-xs">{item.reasoning}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

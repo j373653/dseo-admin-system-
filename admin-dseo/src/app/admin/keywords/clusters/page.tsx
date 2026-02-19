@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabaseClient } from '@/lib/supabase'
 import { detectSearchIntent, generateClusterName, getIntentBadge, SearchIntent } from '@/lib/search-intent'
 import IntentAnalysisModal, { UnknownKeywordsSection } from '@/components/IntentAnalysisModal'
+import { AIKeywordAnalysis } from '@/lib/ai-analysis'
 
 interface Cluster {
   id: string
@@ -136,6 +137,78 @@ export default function ClustersPage() {
     return group?.keywords || []
   }
 
+  const handleApplyAIAnalysis = async (analyses: AIKeywordAnalysis[]) => {
+    try {
+      // Agrupar análisis por cluster
+      const clusterGroups: { [key: string]: AIKeywordAnalysis[] } = {}
+      analyses.forEach(analysis => {
+        const clusterName = analysis.cluster
+        if (!clusterGroups[clusterName]) {
+          clusterGroups[clusterName] = []
+        }
+        clusterGroups[clusterName].push(analysis)
+      })
+
+      let createdClusters = 0
+      let assignedKeywords = 0
+
+      // Crear clusters y asignar keywords
+      for (const [clusterName, clusterAnalyses] of Object.entries(clusterGroups)) {
+        const firstAnalysis = clusterAnalyses[0]
+        
+        // Crear cluster
+        const { data: cluster } = await supabaseClient
+          .from('d_seo_admin_keyword_clusters')
+          .insert({
+            name: clusterName.replace(/_/g, ' '),
+            description: `Cluster generado por IA - Intención: ${firstAnalysis.intent} (${clusterAnalyses.length} keywords)`,
+            keyword_count: clusterAnalyses.length,
+            intent: firstAnalysis.intent
+          })
+          .select()
+          .single()
+
+        if (cluster) {
+          createdClusters++
+          
+          // Obtener IDs de keywords
+          const keywordTexts = clusterAnalyses.map(a => a.keyword)
+          const { data: keywordsData } = await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .select('id, keyword')
+            .in('keyword', keywordTexts)
+
+          if (keywordsData) {
+            const keywordIds = keywordsData.map(k => k.id)
+            
+            // Actualizar keywords
+            const { error } = await supabaseClient
+              .from('d_seo_admin_raw_keywords')
+              .update({ 
+                cluster_id: cluster.id, 
+                status: 'clustered',
+                intent: firstAnalysis.intent
+              })
+              .in('id', keywordIds)
+
+            if (!error) {
+              assignedKeywords += keywordIds.length
+            }
+          }
+        }
+      }
+
+      // Refrescar datos
+      await fetchData()
+      
+      alert(`Análisis completado:\n• ${createdClusters} clusters creados\n• ${assignedKeywords} keywords asignadas`)
+      setShowAnalysisModal(false)
+    } catch (err) {
+      console.error('Error applying AI analysis:', err)
+      alert('Error al aplicar el análisis de IA')
+    }
+  }
+
   const createCluster = async (intent?: SearchIntent) => {
     const keywordsToCluster = intent 
       ? intentGroups.find(g => g.intent === intent)?.keywords || []
@@ -254,7 +327,8 @@ export default function ClustersPage() {
         <UnknownKeywordsSection 
           keywords={unknownGroup.keywords}
           onAnalyzeWithAI={(keywords) => {
-            alert(`Análisis con IA de ${keywords.length} keywords - Funcionalidad en desarrollo (Fase 2)`)
+            setAnalysisIntent('unknown')
+            setShowAnalysisModal(true)
           }}
         />
       )}
@@ -343,6 +417,7 @@ export default function ClustersPage() {
         onClose={() => setShowAnalysisModal(false)}
         intent={analysisIntent}
         keywords={getKeywordsForAnalysis()}
+        onApplyAIAnalysis={handleApplyAIAnalysis}
       />
     </div>
   )
