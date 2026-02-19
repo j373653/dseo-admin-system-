@@ -64,7 +64,7 @@ function suggestContentType(intent: string, clusterName: string): string {
   const nameLower = clusterName.toLowerCase()
   if (intent === 'transactional' || nameLower.includes('precio') || nameLower.includes('comprar')) return 'service'
   if (intent === 'informational' || nameLower.includes('como') || nameLower.includes('guía')) return 'blog'
-  if (intent === 'commercial' || nameLower.includes('mejor') || nameLower.includes('compar'))) return 'landing'
+  if (intent === 'commercial' || nameLower.includes('mejor') || nameLower.includes('compar')) return 'landing'
   return 'service'
 }
 
