@@ -46,9 +46,12 @@ CREATE INDEX IF NOT EXISTS idx_clusters_pillar ON public.d_seo_admin_keyword_clu
 -- 4. ÍNDICE ÚNICO PARA PREVENIR DUPLICADOS
 -- ============================================
 
+-- NOTA: Descomentar después de limpiar duplicados existentes
+-- Ver archivo: 07b_limpiar_duplicados_clusters.sql
+
 -- Prevenir clusters con el mismo nombre (case insensitive)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_clusters_name_unique 
-ON public.d_seo_admin_keyword_clusters(LOWER(name));
+-- CREATE UNIQUE INDEX IF NOT EXISTS idx_clusters_name_unique 
+-- ON public.d_seo_admin_keyword_clusters(LOWER(name));
 
 -- ============================================
 -- 5. VIEW PARA KEYWORDS ACTIVAS (excluye papelera)
