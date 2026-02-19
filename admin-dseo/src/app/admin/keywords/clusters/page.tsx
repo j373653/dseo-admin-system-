@@ -775,45 +775,6 @@ export default function ClustersPage() {
           </div>
         </div>
       )}
-                    {cluster.level > 0 && (
-                      <span className="text-xs text-gray-400">
-                        └─ Nivel {cluster.level}
-                      </span>
-                    )}
-                    <h4 className="text-lg font-semibold text-gray-900">{cluster.name}</h4>
-                    {cluster.intent && (
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getIntentBadge(cluster.intent as SearchIntent).color}`}>
-                        {getIntentBadge(cluster.intent as SearchIntent).label}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <div className="text-sm text-gray-500">
-                      <span className="font-medium">{cluster.keyword_count}</span> keywords
-                      <span className="mx-2">•</span>
-                      <span>{cluster.search_volume_total?.toLocaleString() || 0}</span> vol.
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openParentModal(cluster.id, cluster.parent_cluster_id)
-                      }}
-                      className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
-                    >
-                      {cluster.parentName ? `Cambiar padre` : 'Asignar padre'}
-                    </button>
-                  </div>
-                </div>
-                {cluster.parentName && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Padre: {cluster.parentName}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Analysis Modal */}
       <IntentAnalysisModal
