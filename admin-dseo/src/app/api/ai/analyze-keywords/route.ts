@@ -22,9 +22,23 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.OPENAI_API_KEY
     
+    // Debug logging
+    console.log('Environment check:', {
+      hasApiKey: !!apiKey,
+      apiKeyLength: apiKey ? apiKey.length : 0,
+      apiKeyPrefix: apiKey ? apiKey.substring(0, 20) + '...' : 'none',
+      allEnvKeys: Object.keys(process.env).filter(k => !k.includes('SECRET') && !k.includes('KEY') && !k.includes('PASS')).join(', ')
+    })
+    
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'OPENAI_API_KEY no configurada' },
+        { 
+          error: 'OPENAI_API_KEY no configurada',
+          debug: {
+            message: 'La variable de entorno OPENAI_API_KEY no está disponible',
+            envVars: Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('API'))
+          }
+        },
         { status: 500 }
       )
     }
@@ -82,10 +96,18 @@ Responde SOLO con un JSON válido con este formato:
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error('OpenAI API error:', errorData)
+      const errorData = await response.json().catch(() => ({ error: 'No se pudo parsear respuesta de error' }))
+      console.error('OpenAI API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      })
       return NextResponse.json(
-        { error: 'Error en API de OpenAI', details: errorData },
+        { 
+          error: 'Error en API de OpenAI', 
+          details: errorData,
+          status: response.status
+        },
         { status: 500 }
       )
     }
