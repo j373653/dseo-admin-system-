@@ -2,115 +2,116 @@ import { NextRequest, NextResponse } from 'next/server'
 
 interface KeywordAnalysis {
   keyword: string
+  cluster: string
   intent: 'informational' | 'transactional' | 'commercial' | 'navigational'
   confidence: number
   reasoning: string
-  suggestedCluster: string
-  shouldBeStandalone: boolean
+  contentType: string
+  standaloneUrl: boolean
 }
 
-const MODEL = 'liquid/lfm-2.5-1.2b-thinking:free'
-const BATCH_SIZE = 10 // Procesar de 10 en 10 para evitar limitaciones del modelo gratuito
+const MODEL = 'gemini-2.5-flash'
+const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 
-async function analyzeBatch(
+async function analyzeBatchWithGemini(
   keywords: string[], 
   apiKey: string,
   attempt: number = 1
 ): Promise<KeywordAnalysis[]> {
   const MAX_RETRIES = 2
   
-  const prompt = `Analiza EXACTAMENTE estas ${keywords.length} keywords y devuelve un array con ${keywords.length} elementos.
+  const prompt = `Actúa como un experto en SEO. Analiza EXACTAMENTE estas ${keywords.length} palabras clave y agrúpalas en clusters semánticos.
 
-KEYWORDS A ANALIZAR:
+PALABRAS CLAVE A ANALIZAR:
 ${keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')}
 
-IMPORTANTE: Debes analizar TODAS las ${keywords.length} keywords y devolver un array con ${keywords.length} objetos en el campo "analyses".
+Para CADA palabra clave, devuelve un objeto JSON con:
+- keyword: el texto EXACTO de la palabra clave (copia tal cual)
+- cluster: nombre del grupo temático (2-3 palabras en snake_case, ej: "posicionamiento_web", "redes_sociales")
+- intent: una de [informational, transactional, commercial, navigational]
+- confidence: número entre 0.0 y 1.0
+- reasoning: máximo 10 palabras explicando por qué en español
+- contentType: qué tipo de contenido recomiendas (categoria, blog, producto, landing, comparativa, guia, servicio)
+- standaloneUrl: true si merece página dedicada, false si se puede agrupar
 
-Para CADA keyword, devuelve:
-- keyword: el texto EXACTO de la keyword (copia tal cual)
-- intent: uno de [informational, transactional, commercial, navigational]
-- confidence: número entre 0 y 1
-- reasoning: máximo 10 palabras explicando por qué
-- suggestedCluster: 2-3 palabras en inglés separadas por guiones bajos
-- shouldBeStandalone: boolean
+IMPORTANTE: Debes analizar TODAS las ${keywords.length} palabras clave y devolver exactamente ${keywords.length} objetos en el array "analyses".
 
-Responde ÚNICAMENTE con este formato JSON exacto:
+Responde ÚNICAMENTE con este formato JSON exacto, sin markdown ni texto adicional:
 {
   "analyses": [
-    {"keyword":"texto exacto 1","intent":"informational","confidence":0.9,"reasoning":"razón breve","suggestedCluster":"nombre_cluster","shouldBeStandalone":false},
-    {"keyword":"texto exacto 2","intent":"transactional","confidence":0.85,"reasoning":"otra razón","suggestedCluster":"otro_cluster","shouldBeStandalone":true}
+    {
+      "keyword": "texto exacto 1",
+      "cluster": "nombre_cluster",
+      "intent": "informational",
+      "confidence": 0.95,
+      "reasoning": "breve explicación",
+      "contentType": "blog",
+      "standaloneUrl": false
+    }
   ]
 }`
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://admin.d-seo.es',
-        'X-Title': 'D-SEO Admin'
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un experto SEO. Tu tarea es analizar keywords y clasificarlas. SIEMPRE responde con el array completo de analyses, uno por cada keyword recibida.'
-          },
-          {
-            role: 'user',
-            content: prompt
+    console.log(`Sending ${keywords.length} keywords to Gemini...`)
+    
+    const response = await fetch(
+      `${API_URL}/${MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 4000,
+            responseMimeType: 'application/json'
           }
-        ],
-        temperature: 0.1,
-        max_tokens: 2000
-      }),
-      signal: AbortSignal.timeout(30000) // 30 segundos timeout
-    })
+        }),
+        signal: AbortSignal.timeout(60000) // 60 segundos timeout
+      }
+    )
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`OpenRouter error: ${response.status} - ${errorText}`)
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Gemini API error:', response.status, errorData)
+      throw new Error(`Gemini error ${response.status}: ${JSON.stringify(errorData)}`)
     }
 
     const data = await response.json()
-    const content = data.choices[0]?.message?.content
     
-    if (!content) {
-      throw new Error('Respuesta vacía de OpenRouter')
+    if (!data.candidates || !data.candidates[0]?.content?.parts[0]?.text) {
+      throw new Error('Respuesta inválida de Gemini')
     }
 
-    console.log(`Batch response (${keywords.length} keywords):`, content.substring(0, 500))
+    const content = data.candidates[0].content.parts[0].text
+    console.log('Gemini response received:', content.substring(0, 300) + '...')
 
     // Parsear JSON
     let parsed: any
     try {
       parsed = JSON.parse(content)
     } catch (error) {
-      console.error('JSON Parse error. Raw content:', content)
-      throw new Error('Error parseando JSON')
+      console.error('JSON Parse error. Content:', content)
+      throw new Error('Error parseando JSON de respuesta')
     }
 
     const analyses = parsed.analyses || []
     
-    // Validar que tenemos el número correcto de resultados
+    // Validar cantidad de resultados
     if (analyses.length < keywords.length) {
       console.warn(`Expected ${keywords.length} results, got ${analyses.length}. Retrying...`)
       
       if (attempt <= MAX_RETRIES) {
-        // Esperar un poco antes de reintentar
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        return analyzeBatch(keywords, apiKey, attempt + 1)
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        return analyzeBatchWithGemini(keywords, apiKey, attempt + 1)
       }
-    }
-
-    // Validar que todas las keywords están en el resultado
-    const resultKeywords = new Set(analyses.map((a: any) => a.keyword?.toLowerCase().trim()))
-    const missingKeywords = keywords.filter(k => !resultKeywords.has(k.toLowerCase().trim()))
-    
-    if (missingKeywords.length > 0) {
-      console.warn(`Missing keywords in response:`, missingKeywords)
     }
 
     return analyses
@@ -118,8 +119,8 @@ Responde ÚNICAMENTE con este formato JSON exacto:
   } catch (error: any) {
     if (attempt <= MAX_RETRIES) {
       console.log(`Retrying batch (attempt ${attempt + 1})...`)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      return analyzeBatch(keywords, apiKey, attempt + 1)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      return analyzeBatchWithGemini(keywords, apiKey, attempt + 1)
     }
     throw error
   }
@@ -136,71 +137,72 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY
+    const apiKey = process.env.GOOGLE_AI_API_KEY
     
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'OPENROUTER_API_KEY no configurada' },
+        { error: 'GOOGLE_AI_API_KEY no configurada' },
         { status: 500 }
       )
     }
 
-    console.log(`Starting analysis of ${keywords.length} keywords in batches of ${BATCH_SIZE}`)
+    console.log(`Starting analysis of ${keywords.length} keywords with Gemini`)
 
-    // Procesar en lotes
+    // Estrategia de lotes adaptativa
+    let batchSize: number
+    if (keywords.length <= 50) batchSize = keywords.length
+    else if (keywords.length <= 200) batchSize = 50
+    else if (keywords.length <= 500) batchSize = 100
+    else batchSize = 150
+
+    const totalBatches = Math.ceil(keywords.length / batchSize)
     const allAnalyses: KeywordAnalysis[] = []
-    const totalBatches = Math.ceil(keywords.length / BATCH_SIZE)
     const failedBatches: number[] = []
 
-    for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
-      const batch = keywords.slice(i, i + BATCH_SIZE)
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1
+    for (let i = 0; i < keywords.length; i += batchSize) {
+      const batch = keywords.slice(i, i + batchSize)
+      const batchNum = Math.floor(i / batchSize) + 1
       
       console.log(`Processing batch ${batchNum}/${totalBatches} (${batch.length} keywords)`)
       
       try {
-        const batchResults = await analyzeBatch(batch, apiKey)
-        
-        // Validar resultados
-        if (batchResults.length < batch.length) {
-          console.warn(`Batch ${batchNum}: Expected ${batch.length}, got ${batchResults.length}`)
-          failedBatches.push(batchNum)
-        }
-        
+        const batchResults = await analyzeBatchWithGemini(batch, apiKey)
         allAnalyses.push(...batchResults)
         console.log(`Batch ${batchNum} completed: ${batchResults.length}/${batch.length} results`)
         
-        // Pequeña pausa entre lotes para no sobrecargar la API
+        // Pausa entre lotes para no sobrecargar
         if (batchNum < totalBatches) {
-          await new Promise(resolve => setTimeout(resolve, 500))
+          await new Promise(resolve => setTimeout(resolve, 1000))
         }
       } catch (error: any) {
         console.error(`Error in batch ${batchNum}:`, error.message)
         failedBatches.push(batchNum)
-        // Continuar con el siguiente lote
       }
     }
-    
-    if (failedBatches.length > 0) {
-      console.warn(`Failed batches: ${failedBatches.join(', ')}`)
-    }
 
-    console.log(`Total analyses completed: ${allAnalyses.length}/${keywords.length}`)
+    console.log(`Analysis complete: ${allAnalyses.length}/${keywords.length} keywords processed`)
 
-    // Agrupar por clusters sugeridos
+    // Agrupar por clusters
     const clusterSuggestions: { [key: string]: string[] } = {}
+    const standaloneUrls: string[] = []
+
     allAnalyses.forEach(analysis => {
-      const cluster = analysis.suggestedCluster
-      if (!clusterSuggestions[cluster]) {
-        clusterSuggestions[cluster] = []
+      if (analysis.standaloneUrl) {
+        standaloneUrls.push(analysis.keyword)
+      } else {
+        const cluster = analysis.cluster
+        if (!clusterSuggestions[cluster]) {
+          clusterSuggestions[cluster] = []
+        }
+        clusterSuggestions[cluster].push(analysis.keyword)
       }
-      clusterSuggestions[cluster].push(analysis.keyword)
     })
 
     return NextResponse.json({
       success: true,
       analyses: allAnalyses,
       clusterSuggestions,
+      standaloneUrls,
       totalAnalyzed: allAnalyses.length,
       totalRequested: keywords.length,
       batchesProcessed: totalBatches,

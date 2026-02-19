@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { detectSearchIntent, getIntentBadge, SearchIntent } from '@/lib/search-intent'
 import { analyzeKeywordsWithAI, AIKeywordAnalysis } from '@/lib/ai-analysis'
-import { X, Info, AlertCircle, Brain, Loader2, CheckCircle } from 'lucide-react'
+import { cleanKeywordsForAI, calculateProcessingStrategy, formatTokenSavings } from '@/lib/keyword-cleaner'
+import { X, Info, AlertCircle, Brain, Loader2, CheckCircle, Sparkles, Trash2 } from 'lucide-react'
 
-interface KeywordAnalysis {
+interface KeywordData {
   id: string
   keyword: string
   search_volume: number
@@ -16,8 +17,15 @@ interface IntentAnalysisModalProps {
   isOpen: boolean
   onClose: () => void
   intent: SearchIntent
-  keywords: KeywordAnalysis[]
+  keywords: KeywordData[]
   onApplyAIAnalysis?: (analyses: AIKeywordAnalysis[]) => void
+}
+
+interface CleaningResult {
+  originalCount: number
+  cleanedCount: number
+  duplicatesRemoved: number
+  tokensSaved: number
 }
 
 export default function IntentAnalysisModal({ 
@@ -32,6 +40,8 @@ export default function IntentAnalysisModal({
   const [aiResults, setAiResults] = useState<AIKeywordAnalysis[] | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
   const [showAIResults, setShowAIResults] = useState(false)
+  const [cleaningResult, setCleaningResult] = useState<CleaningResult | null>(null)
+  const [progress, setProgress] = useState({ current: 0, total: 0, message: '' })
   
   if (!isOpen) return null
 
@@ -50,31 +60,48 @@ export default function IntentAnalysisModal({
     kw.keyword.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // Agrupar por patrones detectados
-  const patternsMap = new Map<string, typeof filteredKeywords>()
-  filteredKeywords.forEach(kw => {
-    const patternKey = kw.matches.length > 0 ? kw.matches.join(', ') : 'Sin patrón detectado'
-    if (!patternsMap.has(patternKey)) {
-      patternsMap.set(patternKey, [])
-    }
-    patternsMap.get(patternKey)!.push(kw)
-  })
-
   const runAIAnalysis = async () => {
     setAnalyzing(true)
     setAiError(null)
+    setCleaningResult(null)
     
     try {
-      const result = await analyzeKeywordsWithAI(keywords.map(k => k.keyword))
+      // 1. Limpiar keywords
+      setProgress({ current: 0, total: 0, message: 'Limpiando keywords...' })
+      const cleaned = cleanKeywordsForAI(keywords.map(k => k.keyword))
       
-      if (result.success) {
-        setAiResults(result.analyses)
-        setShowAIResults(true)
-      } else {
-        setAiError(result.error || 'Error en el análisis')
+      setCleaningResult({
+        originalCount: cleaned.stats.originalCount,
+        cleanedCount: cleaned.stats.cleanedCount,
+        duplicatesRemoved: cleaned.stats.duplicatesRemoved,
+        tokensSaved: cleaned.stats.tokensSaved
+      })
+      
+      // 2. Calcular estrategia
+      const strategy = calculateProcessingStrategy(cleaned.cleanedKeywords.length)
+      setProgress({ 
+        current: 0, 
+        total: strategy.estimatedBatches, 
+        message: `Analizando ${cleaned.cleanedKeywords.length} keywords en ${strategy.estimatedBatches} lotes...` 
+      })
+      
+      // 3. Analizar con IA
+      const result = await analyzeKeywordsWithAI(cleaned.cleanedKeywords)
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Error en el análisis')
       }
+      
+      setAiResults(result.analyses)
+      setShowAIResults(true)
+      setProgress({ 
+        current: result.batchesProcessed || 0, 
+        total: result.batchesProcessed || 0, 
+        message: `¡Análisis completado! ${result.totalAnalyzed} keywords procesadas` 
+      })
     } catch (err: any) {
       setAiError(err.message || 'Error desconocido')
+      setProgress({ current: 0, total: 0, message: '' })
     } finally {
       setAnalyzing(false)
     }
@@ -114,7 +141,7 @@ export default function IntentAnalysisModal({
                 ) : (
                   <>
                     <Brain className="w-4 h-4" />
-                    <span>Analizar con IA</span>
+                    <span>Analizar con IA (Gemini)</span>
                   </>
                 )}
               </button>
@@ -128,6 +155,37 @@ export default function IntentAnalysisModal({
           </div>
         </div>
 
+        {/* Resultados de limpieza */}
+        {cleaningResult && cleaningResult.duplicatesRemoved > 0 && (
+          <div className="mx-6 mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center space-x-3">
+            <Sparkles className="w-5 h-5 text-green-600" />
+            <div>
+              <h4 className="text-sm font-medium text-green-900">
+                Limpieza completada
+              </h4>
+              <p className="text-sm text-green-700">
+                {cleaningResult.duplicatesRemoved} duplicados eliminados • {formatTokenSavings(cleaningResult.tokensSaved)} tokens ahorrados
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Barra de progreso */}
+        {analyzing && progress.total > 0 && (
+          <div className="mx-6 mt-4">
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>{progress.message}</span>
+              <span>{progress.current}/{progress.total} lotes</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Error Message */}
         {aiError && (
           <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
@@ -136,7 +194,7 @@ export default function IntentAnalysisModal({
               <h4 className="text-sm font-medium text-red-900">Error en análisis con IA</h4>
               <p className="text-sm text-red-700 mt-1">{aiError}</p>
               <p className="text-xs text-red-600 mt-2">
-                Asegúrate de haber configurado OPENROUTER_API_KEY en las variables de entorno.
+                Asegúrate de haber configurado GOOGLE_AI_API_KEY en las variables de entorno.
               </p>
             </div>
           </div>
@@ -148,7 +206,7 @@ export default function IntentAnalysisModal({
             <div className="flex items-center space-x-3">
               <CheckCircle className="w-5 h-5 text-purple-600" />
               <span className="text-sm text-purple-900">
-                Análisis de IA completado para {aiResults.length} keywords
+                Análisis de Gemini completado para {aiResults.length} keywords
               </span>
             </div>
             <div className="flex space-x-3">
@@ -184,16 +242,14 @@ export default function IntentAnalysisModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {showAIResults && aiResults ? (
-            // AI Results View
             <AIResultsView 
               analyses={aiResults.filter(a => 
                 a.keyword.toLowerCase().includes(searchTerm.toLowerCase())
               )} 
             />
           ) : (
-            // Original Analysis View
             <OriginalAnalysisView 
-              patternsMap={patternsMap}
+              patternsMap={groupByPatterns(filteredKeywords)}
               filteredKeywords={filteredKeywords}
             />
           )}
@@ -213,17 +269,30 @@ export default function IntentAnalysisModal({
   )
 }
 
+// Helper para agrupar por patrones
+function groupByPatterns(keywords: any[]) {
+  const patternsMap = new Map<string, any[]>()
+  keywords.forEach(kw => {
+    const patternKey = kw.matches?.length > 0 ? kw.matches.join(', ') : 'Sin patrón detectado'
+    if (!patternsMap.has(patternKey)) {
+      patternsMap.set(patternKey, [])
+    }
+    patternsMap.get(patternKey)!.push(kw)
+  })
+  return patternsMap
+}
+
 // Sub-componente para mostrar resultados de IA
 function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
-  // Agrupar por cluster sugerido
+  // Agrupar por cluster
   const clusterGroups = new Map<string, AIKeywordAnalysis[]>()
   const standalone: AIKeywordAnalysis[] = []
 
   analyses.forEach(analysis => {
-    if (analysis.shouldBeStandalone) {
+    if (analysis.standaloneUrl) {
       standalone.push(analysis)
     } else {
-      const cluster = analysis.suggestedCluster
+      const cluster = analysis.cluster
       if (!clusterGroups.has(cluster)) {
         clusterGroups.set(cluster, [])
       }
@@ -238,7 +307,7 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
         <div key={clusterName} className="bg-purple-50 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-purple-900 mb-3 flex items-center">
             <Brain className="w-4 h-4 mr-2" />
-            Cluster sugerido: {clusterName}
+            Cluster: {clusterName.replace(/_/g, ' ')}
             <span className="ml-2 text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full">
               {items.length} keywords
             </span>
@@ -248,9 +317,9 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
               <thead>
                 <tr className="text-left text-xs text-gray-500">
                   <th className="pb-2">Keyword</th>
-                  <th className="pb-2">Intención IA</th>
+                  <th className="pb-2">Intención</th>
+                  <th className="pb-2">Tipo Contenido</th>
                   <th className="pb-2">Confianza</th>
-                  <th className="pb-2">Razonamiento</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -264,6 +333,7 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
                           {badge.label}
                         </span>
                       </td>
+                      <td className="py-2 text-gray-600 capitalize">{item.contentType}</td>
                       <td className="py-2">
                         <span className={`px-2 py-1 rounded text-xs ${
                           item.confidence > 0.8 ? 'bg-green-100 text-green-800' :
@@ -273,7 +343,6 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
                           {(item.confidence * 100).toFixed(0)}%
                         </span>
                       </td>
-                      <td className="py-2 text-gray-600 text-xs max-w-xs">{item.reasoning}</td>
                     </tr>
                   )
                 })}
@@ -288,7 +357,7 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
         <div className="bg-yellow-50 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-yellow-900 mb-3 flex items-center">
             <CheckCircle className="w-4 h-4 mr-2" />
-            Sugeridas como URLs individuales
+            URLs individuales sugeridas
             <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full">
               {standalone.length} keywords
             </span>
@@ -298,25 +367,18 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
               <thead>
                 <tr className="text-left text-xs text-gray-500">
                   <th className="pb-2">Keyword</th>
-                  <th className="pb-2">Intención</th>
-                  <th className="pb-2">Razón URL propia</th>
+                  <th className="pb-2">Tipo Contenido</th>
+                  <th className="pb-2">Razón</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {standalone.map((item, idx) => {
-                  const badge = getIntentBadge(item.intent)
-                  return (
-                    <tr key={idx} className="text-sm">
-                      <td className="py-2 text-gray-900 font-medium">{item.keyword}</td>
-                      <td className="py-2">
-                        <span className={`px-2 py-1 rounded text-xs ${badge.color}`}>
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="py-2 text-gray-600 text-xs">{item.reasoning}</td>
-                    </tr>
-                  )
-                })}
+                {standalone.map((item, idx) => (
+                  <tr key={idx} className="text-sm">
+                    <td className="py-2 text-gray-900 font-medium">{item.keyword}</td>
+                    <td className="py-2 text-gray-600 capitalize">{item.contentType}</td>
+                    <td className="py-2 text-gray-600 text-xs">{item.reasoning}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -408,7 +470,7 @@ function OriginalAnalysisView({
 }
 
 interface UnknownKeywordsSectionProps {
-  keywords: KeywordAnalysis[]
+  keywords: KeywordData[]
   onAnalyzeWithAI?: (keywords: string[]) => void
 }
 
@@ -438,7 +500,7 @@ export function UnknownKeywordsSection({ keywords, onAnalyzeWithAI }: UnknownKey
             {keywords.length} keywords con intención desconocida
           </h3>
           <p className="text-sm text-yellow-700 mt-1">
-            Estas keywords no coinciden con los patrones predefinidos. El análisis con IA puede clasificarlas mejor.
+            Estas keywords no coinciden con los patrones predefinidos. El análisis con Gemini puede clasificarlas mejor.
           </p>
           
           {isExpanded && (
@@ -475,7 +537,7 @@ export function UnknownKeywordsSection({ keywords, onAnalyzeWithAI }: UnknownKey
                 ) : (
                   <>
                     <Brain className="w-4 h-4" />
-                    <span>Analizar con IA</span>
+                    <span>Analizar con Gemini</span>
                   </>
                 )}
               </button>
