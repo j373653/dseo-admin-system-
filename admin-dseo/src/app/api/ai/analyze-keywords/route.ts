@@ -20,25 +20,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.OPENAI_API_KEY
-    
-    // Debug logging
-    console.log('Environment check:', {
-      hasApiKey: !!apiKey,
-      apiKeyLength: apiKey ? apiKey.length : 0,
-      apiKeyPrefix: apiKey ? apiKey.substring(0, 20) + '...' : 'none',
-      allEnvKeys: Object.keys(process.env).filter(k => !k.includes('SECRET') && !k.includes('KEY') && !k.includes('PASS')).join(', ')
-    })
+    const apiKey = process.env.OPENROUTER_API_KEY
     
     if (!apiKey) {
       return NextResponse.json(
-        { 
-          error: 'OPENAI_API_KEY no configurada',
-          debug: {
-            message: 'La variable de entorno OPENAI_API_KEY no está disponible',
-            envVars: Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('API'))
-          }
-        },
+        { error: 'OPENROUTER_API_KEY no configurada' },
         { status: 500 }
       )
     }
@@ -72,14 +58,16 @@ Responde SOLO con un JSON válido con este formato:
   ]
 }`
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://admin.d-seo.es',
+        'X-Title': 'D-SEO Admin'
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo', // Puedes cambiar a 'gpt-4' para mejor precisión
+        model: 'deepseek/deepseek-r1-0528:free',
         messages: [
           {
             role: 'system',
@@ -90,21 +78,21 @@ Responde SOLO con un JSON válido con este formato:
             content: prompt
           }
         ],
-        temperature: 0.3, // Baja temperatura para respuestas más consistentes
+        temperature: 0.3,
         max_tokens: 2000
       })
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'No se pudo parsear respuesta de error' }))
-      console.error('OpenAI API error:', {
+      console.error('OpenRouter API error:', {
         status: response.status,
         statusText: response.statusText,
         errorData
       })
       return NextResponse.json(
         { 
-          error: 'Error en API de OpenAI', 
+          error: 'Error en API de OpenRouter', 
           details: errorData,
           status: response.status
         },
@@ -117,7 +105,7 @@ Responde SOLO con un JSON válido con este formato:
     
     if (!content) {
       return NextResponse.json(
-        { error: 'Respuesta vacía de OpenAI' },
+        { error: 'Respuesta vacía de OpenRouter' },
         { status: 500 }
       )
     }
@@ -132,7 +120,7 @@ Responde SOLO con un JSON válido con este formato:
       const parsed = JSON.parse(jsonStr)
       analyses = parsed.analyses || parsed
     } catch (parseError) {
-      console.error('Error parsing OpenAI response:', content)
+      console.error('Error parsing OpenRouter response:', content)
       return NextResponse.json(
         { error: 'Error parseando respuesta', rawResponse: content },
         { status: 500 }
