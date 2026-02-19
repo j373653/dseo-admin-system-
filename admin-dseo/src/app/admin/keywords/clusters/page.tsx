@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabaseClient } from '@/lib/supabase'
 import { detectSearchIntent, generateClusterName, getIntentBadge, SearchIntent } from '@/lib/search-intent'
 import IntentAnalysisModal, { UnknownKeywordsSection } from '@/components/IntentAnalysisModal'
@@ -31,6 +32,7 @@ interface IntentGroup {
 }
 
 export default function ClustersPage() {
+  const router = useRouter()
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [unclusteredKeywords, setUnclusteredKeywords] = useState<Keyword[]>([])
   const [intentGroups, setIntentGroups] = useState<IntentGroup[]>([])
@@ -411,7 +413,11 @@ export default function ClustersPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Clusters Existentes</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {clusters.map((cluster) => (
-              <div key={cluster.id} className="bg-white rounded-lg shadow p-6">
+              <div 
+                key={cluster.id} 
+                className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-indigo-300"
+                onClick={() => router.push(`/admin/keywords/clusters/${cluster.id}`)}
+              >
                 <div className="flex items-start justify-between mb-2">
                   <h4 className="text-lg font-semibold text-gray-900">{cluster.name}</h4>
                   {cluster.intent && (
