@@ -257,5 +257,5 @@ export function getIntentBadge(intent: SearchIntent): {
     }
   };
 
-  return badges[intent];
+  return badges[intent] || badges['unknown'];
 }

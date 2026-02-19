@@ -45,7 +45,7 @@ export default function IntentAnalysisModal({
   
   if (!isOpen) return null
 
-  const badge = getIntentBadge(intent)
+  const badge = getIntentBadge(intent || 'unknown')
   
   // Analizar cada keyword para mostrar por qué se clasificó así
   const analyzedKeywords = keywords.map(kw => {
@@ -319,7 +319,7 @@ function AIResultsView({ analyses }: { analyses: AIKeywordAnalysis[] }) {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {items.map((item, idx) => {
-                  const badge = getIntentBadge(item.intent)
+                  const badge = getIntentBadge(item.intent || 'unknown')
                   return (
                     <tr key={idx} className="text-sm">
                       <td className="py-2 text-gray-900 font-medium">{item.keyword}</td>
