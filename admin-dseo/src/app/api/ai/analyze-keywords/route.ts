@@ -20,36 +20,24 @@ async function analyzeBatchWithGemini(
 ): Promise<KeywordAnalysis[]> {
   const MAX_RETRIES = 2
   
-  const prompt = `Actúa como un experto en SEO. Analiza EXACTAMENTE estas ${keywords.length} palabras clave y agrúpalas en clusters semánticos.
+  const prompt = `Actúa como un experto en SEO. Analiza EXACTAMENTE estas ${keywords.length} palabras clave.
 
-PALABRAS CLAVE A ANALIZAR:
+PALABRAS CLAVE:
 ${keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')}
 
-Para CADA palabra clave, devuelve un objeto JSON con:
-- keyword: el texto EXACTO de la palabra clave (copia tal cual)
-- cluster: nombre del grupo temático (2-3 palabras en snake_case, ej: "posicionamiento_web", "redes_sociales")
-- intent: una de [informational, transactional, commercial, navigational]
-- confidence: número entre 0.0 y 1.0
-- reasoning: máximo 10 palabras explicando por qué en español
-- contentType: qué tipo de contenido recomiendas (categoria, blog, producto, landing, comparativa, guia, servicio)
-- standaloneUrl: true si merece página dedicada, false si se puede agrupar
+Devuelve JSON con array "analyses". Cada elemento:
+- keyword: texto exacto
+- cluster: 2-3 palabras snake_case (ej: "posicionamiento_web")
+- intent: informational|transactional|commercial|navigational
+- confidence: 0.0-1.0
+- reasoning: máx 6 palabras español
+- contentType: categoria|blog|producto|landing|comparativa|guia|servicio
+- standaloneUrl: boolean
 
-IMPORTANTE: Debes analizar TODAS las ${keywords.length} palabras clave y devolver exactamente ${keywords.length} objetos en el array "analyses".
+TOTAL: ${keywords.length} objetos en analyses[]
 
-Responde ÚNICAMENTE con este formato JSON exacto, sin markdown ni texto adicional:
-{
-  "analyses": [
-    {
-      "keyword": "texto exacto 1",
-      "cluster": "nombre_cluster",
-      "intent": "informational",
-      "confidence": 0.95,
-      "reasoning": "breve explicación",
-      "contentType": "blog",
-      "standaloneUrl": false
-    }
-  ]
-}`
+JSON:
+{"analyses":[{"keyword":"...","cluster":"...","intent":"...","confidence":0.95,"reasoning":"...","contentType":"...","standaloneUrl":false}]}`
 
   try {
     console.log(`[Attempt ${attempt}] Sending ${keywords.length} keywords to Gemini...`)
@@ -64,7 +52,7 @@ Responde ÚNICAMENTE con este formato JSON exacto, sin markdown ni texto adicion
       ],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 4000,
+        maxOutputTokens: 8000,
         responseMimeType: 'application/json'
       }
     }
@@ -166,12 +154,12 @@ export async function POST(request: NextRequest) {
 
     console.log(`Starting analysis of ${keywords.length} keywords with Gemini`)
 
-    // Estrategia de lotes adaptativa
+    // Estrategia de lotes adaptativa (reducido para evitar truncamiento)
     let batchSize: number
-    if (keywords.length <= 50) batchSize = keywords.length
-    else if (keywords.length <= 200) batchSize = 50
-    else if (keywords.length <= 500) batchSize = 100
-    else batchSize = 150
+    if (keywords.length <= 25) batchSize = keywords.length
+    else if (keywords.length <= 100) batchSize = 25
+    else if (keywords.length <= 300) batchSize = 30
+    else batchSize = 35
 
     const totalBatches = Math.ceil(keywords.length / batchSize)
     const allAnalyses: KeywordAnalysis[] = []
