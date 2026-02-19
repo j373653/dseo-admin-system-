@@ -43,6 +43,7 @@ export default function ClustersPage() {
   const [showAnalysisModal, setShowAnalysisModal] = useState(false)
   const [analysisIntent, setAnalysisIntent] = useState<SearchIntent>('unknown')
   const [deletingClusters, setDeletingClusters] = useState(false)
+  const [creatingCluster, setCreatingCluster] = useState<SearchIntent | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -198,18 +199,24 @@ export default function ClustersPage() {
         }
       }
 
+      // Cerrar modal PRIMERO para mejor UX
+      setShowAnalysisModal(false)
+      
       // Refrescar datos
       await fetchData()
       
-      alert(`Análisis completado:\n• ${createdClusters} clusters creados\n• ${assignedKeywords} keywords asignadas`)
-      setShowAnalysisModal(false)
+      // Mostrar confirmación
+      alert(`✅ Análisis completado:\n• ${createdClusters} clusters creados\n• ${assignedKeywords} keywords asignadas`)
     } catch (err) {
       console.error('Error applying AI analysis:', err)
-      alert('Error al aplicar el análisis de IA')
+      alert('❌ Error al aplicar el análisis de IA')
+      throw err // Re-lanzar para que el modal maneje el error
     }
   }
 
   const createCluster = async (intent?: SearchIntent) => {
+    if (creatingCluster) return // Prevenir duplicados por clics múltiples
+    
     const keywordsToCluster = intent 
       ? intentGroups.find(g => g.intent === intent)?.keywords || []
       : selectedKeywords.length > 0 
@@ -220,6 +227,8 @@ export default function ClustersPage() {
 
     const name = newClusterName || (intent ? intentGroups.find(g => g.intent === intent)?.suggestedName : '')
     if (!name) return
+
+    setCreatingCluster(intent || 'manual')
 
     try {
       const { data } = await supabaseClient
@@ -242,10 +251,12 @@ export default function ClustersPage() {
       setSelectedKeywords([])
       setShowCreateModal(false)
       setSelectedIntent(null)
-      fetchData()
+      await fetchData()
     } catch (err) {
       console.error('Error creating cluster:', err)
       alert('Error al crear el cluster')
+    } finally {
+      setCreatingCluster(null)
     }
   }
 
@@ -370,9 +381,20 @@ export default function ClustersPage() {
                             e.stopPropagation()
                             createCluster(group.intent)
                           }}
-                          className="flex-1 px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200"
+                          disabled={creatingCluster === group.intent}
+                          className="flex-1 px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
-                          Crear
+                          {creatingCluster === group.intent ? (
+                            <>
+                              <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-indigo-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Creando...
+                            </>
+                          ) : (
+                            'Crear'
+                          )}
                         </button>
                       )}
                     </div>

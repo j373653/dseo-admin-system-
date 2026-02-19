@@ -42,6 +42,7 @@ export default function IntentAnalysisModal({
   const [showAIResults, setShowAIResults] = useState(false)
   const [cleaningResult, setCleaningResult] = useState<CleaningResult | null>(null)
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' })
+  const [applying, setApplying] = useState(false)
   
   if (!isOpen) return null
 
@@ -107,9 +108,17 @@ export default function IntentAnalysisModal({
     }
   }
 
-  const applyAIResults = () => {
-    if (aiResults && onApplyAIAnalysis) {
-      onApplyAIAnalysis(aiResults)
+  const applyAIResults = async () => {
+    if (!aiResults || !onApplyAIAnalysis || applying) return
+    
+    setApplying(true)
+    try {
+      await onApplyAIAnalysis(aiResults)
+      // El modal se cierra automáticamente cuando el padre llama a onClose
+    } catch (error) {
+      console.error('Error applying AI results:', error)
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -219,9 +228,17 @@ export default function IntentAnalysisModal({
               {onApplyAIAnalysis && (
                 <button
                   onClick={applyAIResults}
-                  className="text-sm bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
+                  disabled={applying}
+                  className="text-sm bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
-                  Aplicar resultados
+                  {applying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Aplicando...</span>
+                    </>
+                  ) : (
+                    <span>Aplicar resultados</span>
+                  )}
                 </button>
               )}
             </div>
