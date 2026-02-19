@@ -136,7 +136,7 @@ export default function IntentAnalysisModal({
               <h4 className="text-sm font-medium text-red-900">Error en análisis con IA</h4>
               <p className="text-sm text-red-700 mt-1">{aiError}</p>
               <p className="text-xs text-red-600 mt-2">
-                Asegúrate de haber configurado OPENAI_API_KEY en las variables de entorno.
+                Asegúrate de haber configurado OPENROUTER_API_KEY en las variables de entorno.
               </p>
             </div>
           </div>

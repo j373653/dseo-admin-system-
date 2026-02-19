@@ -58,8 +58,10 @@ Responde SOLO con un JSON válido con este formato:
   ]
 }`
 
+    const MODEL = 'liquid/lfm-2.5-1.2b-thinking:free'
+    
     console.log('Making request to OpenRouter...', {
-      model: 'deepseek/deepseek-chat:free',
+      model: MODEL,
       keywordsCount: keywordsToAnalyze.length,
       hasApiKey: !!apiKey,
       apiKeyPrefix: apiKey?.substring(0, 10) + '...'
@@ -74,7 +76,7 @@ Responde SOLO con un JSON válido con este formato:
         'X-Title': 'D-SEO Admin'
       },
       body: JSON.stringify({
-        model: 'deepseek/deepseek-chat:free',
+        model: MODEL,
         messages: [
           {
             role: 'system',
