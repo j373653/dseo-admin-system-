@@ -90,23 +90,32 @@ export default function AdminLayout({
           >
             Leads
           </Link>
+          <div className="px-6 py-2">
+            <span className="text-xs font-medium text-gray-500 uppercase">Keywords</span>
+          </div>
           <Link
-            href="/admin/keywords"
-            className={`block px-6 py-3 hover:bg-gray-800 ${pathname.startsWith('/admin/keywords') ? 'bg-gray-800' : ''}`}
+            href="/admin/keywords/overview"
+            className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/overview') ? 'bg-gray-800' : ''}`}
           >
-            Keywords
+            📊 Overview
           </Link>
           <Link
-            href="/admin/content"
-            className={`block px-6 py-3 hover:bg-gray-800 ${pathname.startsWith('/admin/content') ? 'bg-gray-800' : ''}`}
+            href="/admin/keywords/clusters"
+            className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/clusters') ? 'bg-gray-800' : ''}`}
           >
-            Contenido Web
+            🎯 Clusters
           </Link>
           <Link
             href="/admin/keywords/strategy"
-            className={`block px-6 py-3 hover:bg-gray-800 pl-10 ${pathname.startsWith('/admin/keywords/strategy') ? 'bg-gray-800' : ''}`}
+            className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/strategy') ? 'bg-gray-800' : ''}`}
           >
-            Estrategia
+            📈 Estrategia
+          </Link>
+          <Link
+            href="/admin/content"
+            className={`block px-6 py-3 hover:bg-gray-800 mt-2 ${pathname.startsWith('/admin/content') ? 'bg-gray-800' : ''}`}
+          >
+            Contenido Web
           </Link>
         </nav>
 
