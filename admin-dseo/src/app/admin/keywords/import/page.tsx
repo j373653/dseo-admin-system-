@@ -125,19 +125,43 @@ export default function ImportKeywordsPage() {
         const rows = lines.slice(1)
         const importedKeywordsList: ImportedKeyword[] = []
         let imported = 0
+        let skipped = 0
         
         for (const line of rows) {
           const cells = line.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''))
           
           const keywordText = keywordIndex >= 0 ? cells[keywordIndex] : cells[0]
+          if (!keywordText) continue
+          
           const searchVolume = volumeIndex >= 0 ? parseInt(cells[volumeIndex]) || 0 : 0
           const difficulty = difficultyIndex >= 0 ? parseInt(cells[difficultyIndex]) || null : null
+          
+          const { data: existing } = await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .select('id, status')
+            .ilike('keyword', keywordText)
+            .single()
+
+          if (existing) {
+            if (existing.status === 'discarded') {
+              await supabaseClient
+                .from('d_seo_admin_raw_keywords')
+                .update({ status: 'pending', search_volume: searchVolume, difficulty: difficulty })
+                .eq('id', existing.id)
+              imported++
+              importedKeywordsList.push({ id: existing.id, keyword: keywordText, search_volume: searchVolume, difficulty })
+            } else {
+              skipped++
+            }
+            continue
+          }
           
           const keywordData = {
             keyword: keywordText,
             search_volume: searchVolume,
             difficulty: difficulty,
             source: 'csv_import',
+            status: 'pending',
             raw_data: Object.fromEntries(headers.map((h, i) => [h, cells[i] || '']))
           }
 
@@ -153,9 +177,9 @@ export default function ImportKeywordsPage() {
           }
         }
 
-        setImportedCount(imported)
-        setImportedKeywords(importedKeywordsList)
-        setSuccess(`${imported} keywords importadas correctamente`)
+        let successMsg = `${imported} keywords importadas correctamente`
+        if (skipped > 0) successMsg += ` (${skipped} ya existentes omitidas)`
+        setSuccess(successMsg)
         setShowAnalysisOptions(true)
         setImporting(false)
       }

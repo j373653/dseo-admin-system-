@@ -229,6 +229,13 @@ export default function OverviewPage() {
     await fetchData()
   }
 
+  const discardCluster = async (clusterId: string) => {
+    if (!confirm('¿Descartar este cluster? Las keywords se marcarán como descartadas y se ignorarán en futuras importaciones.')) return
+    await supabaseClient.from('d_seo_admin_raw_keywords').update({ cluster_id: null, status: 'discarded' }).eq('cluster_id', clusterId)
+    await supabaseClient.from('d_seo_admin_keyword_clusters').delete().eq('id', clusterId)
+    await fetchData()
+  }
+
   const getClusterLinks = (clusterId: string): ClusterRelation[] => {
     return relations.filter(r => 
       (r.source_cluster_id === clusterId || r.target_cluster_id === clusterId) && 
@@ -482,6 +489,13 @@ export default function OverviewPage() {
                           title="Ver detalle"
                         >
                           <ExternalLink className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => discardCluster(cluster.id)}
+                          className="p-1 text-gray-400 hover:text-amber-600"
+                          title="Descartar (keywords ignoradas en futuras importaciones)"
+                        >
+                          <XCircle className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => deleteCluster(cluster.id)}

@@ -29,9 +29,10 @@ Este documento es la fuente de verdad para cualquier agente que trabaje en el ec
 **Endpoints importantes:**
 - `/admin` - Dashboard principal
 - `/admin/keywords` - Gestión de keywords
+- `/admin/keywords/overview` - Vista unificada de clusters
 - `/admin/keywords/clusters` - Lista de clusters
 - `/admin/keywords/clusters/[id]` - Detalle de cluster
-- `/admin/keywords/strategy` - Dashboard de estrategia
+- `/admin/keywords/import` - Importar keywords desde CSV
 - `/admin/content` - Gestión de páginas de contenido
 - `/admin/leads` - Gestión de leads
 - `/api/ai/analyze-keywords` - Análisis de IA
@@ -245,6 +246,21 @@ Ver `docs/AI_MODELS_GUIDE.md` para detalles completos sobre rates, estrategias y
 - `admin-dseo/src/app/api/ai/generate-embeddings/route.ts`
 - `admin-dseo/src/app/admin/keywords/strategy/page.tsx`
 
+### Fase 4: Importar CSV + Descartar Keywords
+- [x] Menú "Importar CSV" en sidebar
+- [x] Importación smart: ignora keywords existentes (pending/clustered)
+- [x] Reactivación: keywords descartadas se reactivan al importar de nuevo
+- [x] Botón "Descartar" en Overview (marca keywords como discarded)
+- [x] Cálculo automático de search_volume_total al crear clusters
+- [x] Filtros por intención (transactional, commercial, informational, navigational)
+- [x] Ordenación por priority, volume, keywords, name
+- [x] Propuesta automática de pilares
+
+**Archivos:**
+- `admin-dseo/src/app/admin/layout.tsx` (menú)
+- `admin-dseo/src/app/admin/keywords/import/page.tsx` (lógica importación)
+- `admin-dseo/src/app/admin/keywords/overview/page.tsx` (descartar, filtros, ordenación)
+
 ---
 
 ## 7. Integración Futura (Roadmap)
@@ -342,6 +358,7 @@ GOOGLE_AI_API_KEY=...
 
 | Fecha | Versión | Cambios |
 |-------|---------|---------|
+| 2026-02-19 | 1.1 | Añadido Fase 4: Importar CSV + Descartar Keywords |
 | 2026-02-19 | 1.0 | Versión inicial del documento |
 
 ---
