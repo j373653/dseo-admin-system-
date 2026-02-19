@@ -9,7 +9,7 @@ interface KeywordAnalysis {
   contentType: string
 }
 
-const MODEL = 'gemini-2.5-flash-lite'  // Cambiado a Flash Lite para mejores rate limits
+const MODEL = 'gemini-2.5-flash-lite'
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 async function analyzeBatchWithGemini(
@@ -19,23 +19,25 @@ async function analyzeBatchWithGemini(
 ): Promise<KeywordAnalysis[]> {
   const MAX_RETRIES = 2
   
-  const prompt = `Actúa como un experto en SEO. Analiza EXACTAMENTE estas ${keywords.length} palabras clave.
+  const keywordList = keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')
+  
+  const prompt = `Actua como un experto en SEO. Analiza EXACTAMENTE estas ${keywords.length} palabras clave.
 
 PALABRAS CLAVE:
-${keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')}
+${keywordList}
 
 Devuelve JSON con array "analyses". Cada elemento:
 - keyword: texto exacto
 - cluster: 2-3 palabras snake_case (ej: "posicionamiento_web")
 - intent: informational|transactional|commercial|navigational
 - confidence: 0.0-1.0
-- reasoning: máx 6 palabras español
+- reasoning: max 6 palabras espanol
 - contentType: categoria|blog|producto|landing|comparativa|guia|servicio
 
 TOTAL: ${keywords.length} objetos en analyses[]
 
 JSON:
-{"analyses":[{"keyword":"...","cluster":"...","intent":"...","confidence":0.95,"reasoning":"...","contentType":"..."}]}
+{"analyses":[{"keyword":"...","cluster":"...","intent":"...","confidence":0.95,"reasoning":"...","contentType":"..."}]}`
 
   try {
     console.log(`[Attempt ${attempt}] Sending ${keywords.length} keywords to Gemini ${MODEL}...`)
@@ -74,12 +76,11 @@ JSON:
     const data = await response.json()
     
     if (!data.candidates || !data.candidates[0]?.content?.parts[0]?.text) {
-      throw new Error('Respuesta inválida de Gemini')
+      throw new Error('Respuesta invalida de Gemini')
     }
 
     const content = data.candidates[0].content.parts[0].text
 
-    // Parsear JSON
     let parsed: any
     try {
       parsed = JSON.parse(content)
@@ -91,10 +92,9 @@ JSON:
     const analyses = parsed.analyses || []
     
     if (analyses.length === 0) {
-      throw new Error('No se encontraron análisis en la respuesta')
+      throw new Error('No se encontraron analisis en la respuesta')
     }
     
-    // Validar cantidad de resultados
     if (analyses.length < keywords.length && attempt <= MAX_RETRIES) {
       console.warn(`Expected ${keywords.length}, got ${analyses.length}. Retrying...`)
       await new Promise(resolve => setTimeout(resolve, 2000))
@@ -135,7 +135,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`Starting analysis of ${keywords.length} keywords with Gemini ${MODEL}`)
 
-    // Estrategia de lotes para Flash Lite (más generoso con rate limits)
     let batchSize: number
     if (keywords.length <= 50) batchSize = keywords.length
     else if (keywords.length <= 500) batchSize = 50
@@ -157,7 +156,6 @@ export async function POST(request: NextRequest) {
         allAnalyses.push(...batchResults)
         console.log(`✅ Batch ${batchNum} SUCCESS: ${batchResults.length}/${batch.length} results`)
         
-        // Pausa entre lotes
         if (batchNum < totalBatches) {
           await new Promise(resolve => setTimeout(resolve, 500))
         }
@@ -175,7 +173,6 @@ export async function POST(request: NextRequest) {
     }
     console.log(`=====================================\n`)
 
-    // Agrupar por clusters
     const clusterSuggestions: { [key: string]: string[] } = {}
 
     allAnalyses.forEach(analysis => {
