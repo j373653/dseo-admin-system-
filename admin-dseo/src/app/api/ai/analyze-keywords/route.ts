@@ -9,6 +9,80 @@ interface KeywordAnalysis {
   shouldBeStandalone: boolean
 }
 
+const MODEL = 'liquid/lfm-2.5-1.2b-thinking:free'
+const BATCH_SIZE = 10 // Procesar de 10 en 10 para evitar limitaciones del modelo gratuito
+
+async function analyzeBatch(
+  keywords: string[], 
+  apiKey: string
+): Promise<KeywordAnalysis[]> {
+  const prompt = `Analiza estas ${keywords.length} keywords de SEO y responde SOLO con JSON válido:
+
+${keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
+
+Para cada keyword, devuelve en JSON:
+- keyword: texto exacto
+- intent: informational|transactional|commercial|navigational
+- confidence: número 0-1
+- reasoning: breve explicación en español
+- suggestedCluster: nombre corto del tema (2-3 palabras en snake_case)
+- shouldBeStandalone: true si merece URL propia, false si agrupar
+
+Formato JSON exacto:
+{"analyses":[{"keyword":"...","intent":"...","confidence":0.95,"reasoning":"...","suggestedCluster":"...","shouldBeStandalone":true/false}]}`
+
+Responde ÚNICAMENTE el JSON, sin texto adicional.`
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://admin.d-seo.es',
+      'X-Title': 'D-SEO Admin'
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: 'Eres un experto SEO. Responde SOLO con JSON válido, sin markdown ni texto adicional.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 1500,
+      response_format: { type: 'json_object' } // Forzar formato JSON
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`OpenRouter error: ${response.status} - ${errorText}`)
+  }
+
+  const data = await response.json()
+  const content = data.choices[0]?.message?.content
+  
+  if (!content) {
+    throw new Error('Respuesta vacía de OpenRouter')
+  }
+
+  console.log('Raw response:', content.substring(0, 200) + '...')
+
+  // Parsear JSON
+  try {
+    const parsed = JSON.parse(content)
+    return parsed.analyses || []
+  } catch (error) {
+    console.error('Parse error, content:', content)
+    throw new Error('Error parseando JSON de respuesta')
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { keywords } = await request.json()
@@ -29,123 +103,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Limitar a 50 keywords por análisis para no sobrecargar
-    const keywordsToAnalyze = keywords.slice(0, 50)
+    console.log(`Starting analysis of ${keywords.length} keywords in batches of ${BATCH_SIZE}`)
 
-    const prompt = `Analiza las siguientes keywords de SEO y determina su intención de búsqueda (search intent).
-    
-Keywords a analizar:
-${keywordsToAnalyze.map((k: string, i: number) => `${i + 1}. ${k}`).join('\n')}
+    // Procesar en lotes
+    const allAnalyses: KeywordAnalysis[] = []
+    const totalBatches = Math.ceil(keywords.length / BATCH_SIZE)
 
-Para cada keyword, determina:
-1. Intención: informational (busca información), transactional (quiere comprar/contratar), commercial (investigando opciones antes de comprar), o navigational (busca una página específica)
-2. Confianza: 0-1 (qué tan seguro estás)
-3. Razonamiento: por qué clasificaste así en 1-2 frases
-4. Cluster sugerido: nombre corto (2-3 palabras) del grupo temático
-5. ¿URL propia?: true si merece página dedicada, false si puede ir con otras similares
-
-Responde SOLO con un JSON válido con este formato:
-{
-  "analyses": [
-    {
-      "keyword": "texto exacto",
-      "intent": "informational|transactional|commercial|navigational",
-      "confidence": 0.95,
-      "reasoning": "explicación breve",
-      "suggestedCluster": "nombre cluster",
-      "shouldBeStandalone": true|false
-    }
-  ]
-}`
-
-    const MODEL = 'liquid/lfm-2.5-1.2b-thinking:free'
-    
-    console.log('Making request to OpenRouter...', {
-      model: MODEL,
-      keywordsCount: keywordsToAnalyze.length,
-      hasApiKey: !!apiKey,
-      apiKeyPrefix: apiKey?.substring(0, 10) + '...'
-    })
-
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'https://admin.d-seo.es',
-        'X-Title': 'D-SEO Admin'
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un experto en SEO y análisis de intención de búsqueda. Responde solo con JSON válido.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000
-      })
-    })
-
-    console.log('OpenRouter response status:', response.status, response.statusText)
-
-    if (!response.ok) {
-      let errorText = ''
-      try {
-        const errorData = await response.json()
-        errorText = JSON.stringify(errorData)
-        console.error('OpenRouter API error JSON:', errorData)
-      } catch {
-        errorText = await response.text()
-        console.error('OpenRouter API error text:', errorText)
-      }
+    for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+      const batch = keywords.slice(i, i + BATCH_SIZE)
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1
       
-      return NextResponse.json(
-        { 
-          error: 'Error en API de OpenRouter', 
-          details: errorText,
-          status: response.status,
-          statusText: response.statusText
-        },
-        { status: 500 }
-      )
+      console.log(`Processing batch ${batchNum}/${totalBatches} (${batch.length} keywords)`)
+      
+      try {
+        const batchResults = await analyzeBatch(batch, apiKey)
+        allAnalyses.push(...batchResults)
+        console.log(`Batch ${batchNum} completed: ${batchResults.length} results`)
+      } catch (error: any) {
+        console.error(`Error in batch ${batchNum}:`, error.message)
+        // Continuar con el siguiente lote aunque uno falle
+      }
     }
 
-    const data = await response.json()
-    const content = data.choices[0]?.message?.content
-    
-    if (!content) {
-      return NextResponse.json(
-        { error: 'Respuesta vacía de OpenRouter' },
-        { status: 500 }
-      )
-    }
-
-    // Parsear la respuesta JSON
-    let analyses: KeywordAnalysis[]
-    try {
-      // Extraer JSON si viene envuelto en markdown
-      const jsonMatch = content.match(/```json\n?([\s\S]*?)\n?```/) || 
-                       content.match(/{[\s\S]*}/)
-      const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : content
-      const parsed = JSON.parse(jsonStr)
-      analyses = parsed.analyses || parsed
-    } catch (parseError) {
-      console.error('Error parsing OpenRouter response:', content)
-      return NextResponse.json(
-        { error: 'Error parseando respuesta', rawResponse: content },
-        { status: 500 }
-      )
-    }
+    console.log(`Total analyses completed: ${allAnalyses.length}/${keywords.length}`)
 
     // Agrupar por clusters sugeridos
     const clusterSuggestions: { [key: string]: string[] } = {}
-    analyses.forEach(analysis => {
+    allAnalyses.forEach(analysis => {
       const cluster = analysis.suggestedCluster
       if (!clusterSuggestions[cluster]) {
         clusterSuggestions[cluster] = []
@@ -155,9 +139,11 @@ Responde SOLO con un JSON válido con este formato:
 
     return NextResponse.json({
       success: true,
-      analyses,
+      analyses: allAnalyses,
       clusterSuggestions,
-      totalAnalyzed: analyses.length
+      totalAnalyzed: allAnalyses.length,
+      totalRequested: keywords.length,
+      batchesProcessed: totalBatches
     })
 
   } catch (error: any) {
