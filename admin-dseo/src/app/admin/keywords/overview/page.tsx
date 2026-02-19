@@ -78,6 +78,7 @@ export default function OverviewPage() {
   const [sortBy, setSortBy] = useState<'priority' | 'volume' | 'name'>('priority')
   const [calculating, setCalculating] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [proposing, setProposing] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -163,6 +164,56 @@ export default function OverviewPage() {
     }
   }
 
+  const proposePillars = async () => {
+    if (!confirm(`¿Proponer pilares automáticamente para ${orphanClusters.length} clusters huérfanos? Los clusters con mayor volumen se convertirán en pilares y los demás se enlazarán como hijos.`)) return
+    
+    setProposing(true)
+    try {
+      const orphans = [...clusters].filter(c => !c.is_pillar_page && !c.parent_cluster_id)
+      orphans.sort((a, b) => (b.search_volume_total || 0) - (a.search_volume_total || 0))
+      
+      const pillarCount = Math.max(1, Math.min(20, Math.floor(orphans.length / 10)))
+      const pillars = orphans.slice(0, pillarCount)
+      const children = orphans.slice(pillarCount)
+      
+      for (const pillar of pillars) {
+        await supabaseClient
+          .from('d_seo_admin_keyword_clusters')
+          .update({ is_pillar_page: true, content_type_target: suggestContentType(pillar.intent || '', pillar.name) })
+          .eq('id', pillar.id)
+      }
+      
+      for (const child of children) {
+        const bestPillar = pillars.reduce((best, pillar) => {
+          const bestSim = relations.find(r => 
+            (r.source_cluster_id === pillar.id && r.target_cluster_id === child.id) ||
+            (r.target_cluster_id === pillar.id && r.source_cluster_id === child.id)
+          )
+          const childSim = relations.find(r => 
+            (r.source_cluster_id === best.id && r.target_cluster_id === child.id) ||
+            (r.target_cluster_id === best.id && r.source_cluster_id === child.id)
+          )
+          return ((bestSim?.similarity_score || 0) > (childSim?.similarity_score || 0)) ? best : pillar
+        }, pillars[0])
+        
+        await supabaseClient
+          .from('d_seo_admin_keyword_clusters')
+          .update({ 
+            parent_cluster_id: bestPillar.id,
+            content_type_target: suggestContentType(child.intent || '', child.name)
+          })
+          .eq('id', child.id)
+      }
+      
+      await fetchData()
+      alert(`✅ Propuesta de pilares completada: ${pillars.length} pilares, ${children.length} hijos`)
+    } catch (err) {
+      console.error('Error:', err)
+    } finally {
+      setProposing(false)
+    }
+  }
+
   const updateContentType = async (clusterId: string, contentType: string) => {
     await supabaseClient
       .from('d_seo_admin_keyword_clusters')
@@ -239,6 +290,15 @@ export default function OverviewPage() {
           >
             {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             <span>🧠 Analizar IA</span>
+          </button>
+          <button
+            onClick={proposePillars}
+            disabled={proposing || orphanClusters.length === 0}
+            className="flex items-center space-x-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+            title="Propón pilares automáticamente para clusters huérfanos"
+          >
+            {proposing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            <span>🎯 Proponer Pilares</span>
           </button>
         </div>
       </div>

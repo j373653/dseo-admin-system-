@@ -105,12 +105,7 @@ export default function AdminLayout({
           >
             🎯 Clusters
           </Link>
-          <Link
-            href="/admin/keywords/strategy"
-            className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/strategy') ? 'bg-gray-800' : ''}`}
-          >
-            📈 Estrategia
-          </Link>
+
           <Link
             href="/admin/content"
             className={`block px-6 py-3 hover:bg-gray-800 mt-2 ${pathname.startsWith('/admin/content') ? 'bg-gray-800' : ''}`}
