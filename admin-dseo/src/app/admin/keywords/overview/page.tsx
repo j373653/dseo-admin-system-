@@ -48,7 +48,7 @@ const PROTECTED_URLS = [
   { url: '/servicios/sectores/', keywords: ['sector'] },
 ]
 
-function matchClusterToSitemap(clusterName: string): { match: boolean; url?: string; action: 'update' | 'create' } {
+function matchClusterToSitemap(clusterName: string, intent?: string): { match: boolean; url?: string; action: 'update' | 'create' } {
   const nameLower = clusterName.toLowerCase()
   for (const page of PROTECTED_URLS) {
     for (const kw of page.keywords) {
@@ -57,7 +57,14 @@ function matchClusterToSitemap(clusterName: string): { match: boolean; url?: str
       }
     }
   }
-  return { match: false, action: 'create' }
+  
+  const slug = nameLower.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  
+  if (intent === 'informational' || nameLower.includes('como') || nameLower.includes('guía') || nameLower.includes('qué es') || nameLower.includes('definición')) {
+    return { match: false, url: `/blog/${slug}/`, action: 'create' }
+  }
+  
+  return { match: false, url: `/servicios/${slug}/`, action: 'create' }
 }
 
 function suggestContentType(intent: string, clusterName: string): string {
@@ -100,6 +107,47 @@ export default function OverviewPage() {
     }
   }
 
+  const recalculateVolumes = async () => {
+    if (!confirm('¿Recalcular volúmenes de todos los clusters desde las keywords?')) return
+    
+    setCalculating(true)
+    try {
+      const { data: clusters } = await supabaseClient
+        .from('d_seo_admin_keyword_clusters')
+        .select('id')
+      
+      if (!clusters) return
+
+      for (const cluster of clusters) {
+        const { data: keywords } = await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .select('search_volume, difficulty')
+          .eq('cluster_id', cluster.id)
+
+        if (keywords && keywords.length > 0) {
+          const totalVolume = keywords.reduce((sum, k) => sum + (k.search_volume || 0), 0)
+          const avgDifficulty = Math.round(keywords.reduce((sum, k) => sum + (k.difficulty || 0), 0) / keywords.length)
+          
+          await supabaseClient
+            .from('d_seo_admin_keyword_clusters')
+            .update({ 
+              search_volume_total: totalVolume,
+              difficulty_avg: avgDifficulty,
+              keyword_count: keywords.length
+            })
+            .eq('id', cluster.id)
+        }
+      }
+
+      await fetchData()
+      alert('✅ Volúmenes recalculados correctamente')
+    } catch (err) {
+      console.error('Error:', err)
+    } finally {
+      setCalculating(false)
+    }
+  }
+
   const calculatePriorities = async () => {
     setCalculating(true)
     try {
@@ -132,21 +180,42 @@ export default function OverviewPage() {
   const analyzeWithAI = async () => {
     setAnalyzing(true)
     try {
-      const keywordsRes = await supabaseClient
+      const { data: clusters } = await supabaseClient
+        .from('d_seo_admin_keyword_clusters')
+        .select('id, name')
+
+      if (!clusters || clusters.length === 0) {
+        alert('⚠️ No hay clusters creados. Crea clusters primero en la página Clusters.')
+        setAnalyzing(false)
+        return
+      }
+
+      const { data: keywordsToAnalyze } = await supabaseClient
         .from('d_seo_admin_raw_keywords')
-        .select('id, keyword, embedding')
-        .is('embedding', null)
-        .limit(500)
+        .select('id, keyword, cluster_id')
+        .in('status', ['pending', 'active'])
+        .limit(1000)
 
-      if (keywordsRes.data && keywordsRes.data.length > 0) {
-        const keywords = keywordsRes.data.map(k => k.keyword)
-        const keywordIds = keywordsRes.data.map(k => k.id)
+      if (!keywordsToAnalyze || keywordsToAnalyze.length === 0) {
+        alert('⚠️ No hay keywords para analizar.')
+        setAnalyzing(false)
+        return
+      }
 
-        await fetch('/api/ai/generate-embeddings', {
+      const keywords = keywordsToAnalyze.filter(k => !k.cluster_id).map(k => k.keyword)
+      const keywordIds = keywordsToAnalyze.filter(k => !k.cluster_id).map(k => k.id)
+
+      if (keywords.length > 0) {
+        alert(`📊 Generando embeddings para ${keywords.length} keywords...`)
+        
+        const response = await fetch('/api/ai/generate-embeddings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ keywords, keywordIds })
         })
+
+        const result = await response.json()
+        console.log('Embedding result:', result)
       }
 
       await fetch('/api/ai/generate-embeddings', {
@@ -156,9 +225,10 @@ export default function OverviewPage() {
       })
 
       await fetchData()
-      alert('✅ Análisis IA completado: embeddings, canibalizaciones y links generados')
+      alert('✅ Análisis IA completado: embeddings, canibalizaciones y links internos generados')
     } catch (err) {
       console.error('Error:', err)
+      alert('❌ Error durante el análisis. Revisa la consola.')
     } finally {
       setAnalyzing(false)
     }
@@ -291,6 +361,15 @@ export default function OverviewPage() {
             <span>🔄 Recalcular</span>
           </button>
           <button
+            onClick={recalculateVolumes}
+            disabled={calculating}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            title="Recalcula los volúmenes desde las keywords asignadas"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>📊 Volúmenes</span>
+          </button>
+          <button
             onClick={analyzeWithAI}
             disabled={analyzing}
             className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
@@ -319,11 +398,11 @@ export default function OverviewPage() {
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Actualizar existente</p>
-          <p className="text-2xl font-bold text-amber-600">{clusters.filter(c => matchClusterToSitemap(c.name).action === 'update').length}</p>
+          <p className="text-2xl font-bold text-amber-600">{clusters.filter(c => matchClusterToSitemap(c.name, c.intent).action === 'update').length}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Crear nuevo</p>
-          <p className="text-2xl font-bold text-green-600">{clusters.filter(c => matchClusterToSitemap(c.name).action === 'create').length}</p>
+          <p className="text-2xl font-bold text-green-600">{clusters.filter(c => matchClusterToSitemap(c.name, c.intent).action === 'create').length}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Canibalizaciones</p>
@@ -403,7 +482,7 @@ export default function OverviewPage() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredClusters.map(cluster => {
-                const sitemapMatch = matchClusterToSitemap(cluster.name)
+                const sitemapMatch = matchClusterToSitemap(cluster.name, cluster.intent)
                 const links = getClusterLinks(cluster.id)
                 const priority = cluster.priority_score?.final_priority || 0
 
