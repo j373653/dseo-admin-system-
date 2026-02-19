@@ -45,7 +45,6 @@ export async function analyzeKeywordsWithAI(keywords: string[]): Promise<AIAnaly
       success: false,
       analyses: [],
       clusterSuggestions: {},
-      standaloneUrls: [],
       totalAnalyzed: 0,
       totalRequested: keywords.length,
       error: error.message
