@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabaseClient } from '@/lib/supabase'
 import { detectSearchIntent, generateClusterName, getIntentBadge, SearchIntent } from '@/lib/search-intent'
 import IntentAnalysisModal, { UnknownKeywordsSection } from '@/components/IntentAnalysisModal'
+import { Loader2 } from 'lucide-react'
 import { AIKeywordAnalysis } from '@/lib/ai-analysis'
 
 interface Cluster {
@@ -15,6 +16,8 @@ interface Cluster {
   search_volume_total: number
   intent: string
   created_at: string
+  is_pillar_page: boolean
+  parent_cluster_id: string | null
 }
 
 interface Keyword {
@@ -46,6 +49,12 @@ export default function ClustersPage() {
   const [analysisIntent, setAnalysisIntent] = useState<SearchIntent>('unknown')
   const [deletingClusters, setDeletingClusters] = useState(false)
   const [creatingCluster, setCreatingCluster] = useState<string | null>(null)
+  
+  // Parent cluster modal
+  const [showParentModal, setShowParentModal] = useState(false)
+  const [selectedClusterForParent, setSelectedClusterForParent] = useState<string>('')
+  const [selectedParentId, setSelectedParentId] = useState<string>('')
+  const [updatingParent, setUpdatingParent] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -98,6 +107,61 @@ export default function ClustersPage() {
       .sort((a, b) => b.keywords.length - a.keywords.length)
   }
 
+  interface ClusterWithLevel extends Cluster {
+    level: number
+    parentName: string | null
+  }
+
+  const buildHierarchy = (): ClusterWithLevel[] => {
+    const clusterMap = new Map<string, Cluster>()
+    clusters.forEach(c => clusterMap.set(c.id, c))
+
+    const result: ClusterWithLevel[] = []
+    
+    // First, find root clusters (no parent or parent not in list)
+    const rootClusters = clusters.filter(c => {
+      if (!c.parent_cluster_id) return true
+      return !clusterMap.has(c.parent_cluster_id)
+    })
+
+    // Build hierarchy recursively
+    const addChildren = (parentId: string | null, level: number) => {
+      const children = clusters.filter(c => c.parent_cluster_id === parentId)
+      children.forEach(child => {
+        const parentName = parentId ? clusterMap.get(parentId)?.name || null : null
+        result.push({ ...child, level, parentName })
+        addChildren(child.id, level + 1)
+      })
+    }
+
+    rootClusters.forEach(cluster => {
+      result.push({ ...cluster, level: 0, parentName: null })
+      addChildren(cluster.id, 1)
+    })
+
+    // Add orphans (clusters with parent not in database)
+    const addedIds = new Set(result.map(c => c.id))
+    clusters.forEach(cluster => {
+      if (!addedIds.has(cluster.id) && cluster.parent_cluster_id && !clusterMap.has(cluster.parent_cluster_id)) {
+        result.push({ ...cluster, level: 0, parentName: '（外部）' })
+      }
+    })
+
+    return result
+  }
+
+  const getOrphanClusters = (): Cluster[] => {
+    const pillarIds = new Set(clusters.filter(c => c.is_pillar_page).map(c => c.id))
+    return clusters.filter(c => !c.parent_cluster_id && !c.is_pillar_page && !pillarIds.has(c.id))
+  }
+
+  const isDescendantOf = (clusterId: string, potentialParentId: string): boolean => {
+    const cluster = clusters.find(c => c.id === clusterId)
+    if (!cluster || !cluster.parent_cluster_id) return false
+    if (cluster.parent_cluster_id === potentialParentId) return true
+    return isDescendantOf(cluster.parent_cluster_id, potentialParentId)
+  }
+
   const deleteAllClusters = async () => {
     if (!confirm('¿Estás seguro de eliminar TODOS los clusters existentes? Las keywords volverán a estado sin clasificar.')) {
       return
@@ -124,6 +188,32 @@ export default function ClustersPage() {
       alert('Error al eliminar clusters')
     } finally {
       setDeletingClusters(false)
+    }
+  }
+
+  const openParentModal = (clusterId: string, currentParentId: string | null) => {
+    setSelectedClusterForParent(clusterId)
+    setSelectedParentId(currentParentId || '')
+    setShowParentModal(true)
+  }
+
+  const updateParentCluster = async () => {
+    if (!selectedClusterForParent) return
+    
+    setUpdatingParent(true)
+    try {
+      await supabaseClient
+        .from('d_seo_admin_keyword_clusters')
+        .update({ parent_cluster_id: selectedParentId || null })
+        .eq('id', selectedClusterForParent)
+      
+      setShowParentModal(false)
+      await fetchData()
+    } catch (err) {
+      console.error('Error updating parent:', err)
+      alert('Error al actualizar el cluster padre')
+    } finally {
+      setUpdatingParent(false)
     }
   }
 
@@ -407,32 +497,80 @@ export default function ClustersPage() {
         </div>
       )}
 
+      {/* Orphan Clusters Warning */}
+      {getOrphanClusters().length > 0 && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 text-yellow-600 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium text-yellow-800">Clusters sin Pillar Page</h3>
+              <p className="text-sm text-yellow-600 mt-1">
+                {getOrphanClusters().length} clusters no tienen una Pillar Page asignada. 
+                Considera asignarles un cluster padre o marcar uno como Pillar Page.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Existing Clusters */}
       {clusters.length > 0 && (
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Clusters Existentes</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clusters.map((cluster) => (
+          <div className="space-y-3">
+            {buildHierarchy().map((cluster) => (
               <div 
                 key={cluster.id} 
-                className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-indigo-300"
+                className={`bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md transition-shadow border-l-4 ${
+                  cluster.is_pillar_page ? 'border-l-purple-500' : 
+                  cluster.level > 0 ? 'border-l-indigo-300' : 'border-l-gray-300'
+                }`}
+                style={{ marginLeft: `${cluster.level * 24}px` }}
                 onClick={() => router.push(`/admin/keywords/clusters/${cluster.id}`)}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="text-lg font-semibold text-gray-900">{cluster.name}</h4>
-                  {cluster.intent && (
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getIntentBadge(cluster.intent as SearchIntent).color}`}>
-                      {getIntentBadge(cluster.intent as SearchIntent).label}
-                    </span>
-                  )}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {cluster.is_pillar_page && (
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded font-medium">
+                        📄 Pillar
+                      </span>
+                    )}
+                    {cluster.level > 0 && (
+                      <span className="text-xs text-gray-400">
+                        └─ Nivel {cluster.level}
+                      </span>
+                    )}
+                    <h4 className="text-lg font-semibold text-gray-900">{cluster.name}</h4>
+                    {cluster.intent && (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getIntentBadge(cluster.intent as SearchIntent).color}`}>
+                        {getIntentBadge(cluster.intent as SearchIntent).label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <div className="text-sm text-gray-500">
+                      <span className="font-medium">{cluster.keyword_count}</span> keywords
+                      <span className="mx-2">•</span>
+                      <span>{cluster.search_volume_total?.toLocaleString() || 0}</span> vol.
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openParentModal(cluster.id, cluster.parent_cluster_id)
+                      }}
+                      className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                    >
+                      {cluster.parentName ? `Cambiar padre` : 'Asignar padre'}
+                    </button>
+                  </div>
                 </div>
-                {cluster.description && (
-                  <p className="text-sm text-gray-600 mb-4">{cluster.description}</p>
+                {cluster.parentName && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Padre: {cluster.parentName}
+                  </p>
                 )}
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>{cluster.keyword_count} keywords</span>
-                  <span>{cluster.search_volume_total?.toLocaleString() || 0} vol. total</span>
-                </div>
               </div>
             ))}
           </div>
@@ -447,6 +585,79 @@ export default function ClustersPage() {
         keywords={getKeywordsForAnalysis()}
         onApplyAIAnalysis={handleApplyAIAnalysis}
       />
+
+      {/* Parent Cluster Modal */}
+      {showParentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Asignar Cluster Padre
+            </h3>
+            
+            <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
+              <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                selectedParentId === '' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'
+              }`}>
+                <input
+                  type="radio"
+                  name="parentCluster"
+                  value=""
+                  checked={selectedParentId === ''}
+                  onChange={(e) => setSelectedParentId(e.target.value)}
+                  className="sr-only"
+                />
+                <span className="flex-1 text-sm font-medium text-gray-900">
+                  Sin cluster padre (raíz)
+                </span>
+              </label>
+              
+              {clusters
+                .filter(c => c.id !== selectedClusterForParent)
+                .filter(c => !isDescendantOf(c.id, selectedClusterForParent))
+                .map((c) => (
+                <label
+                  key={c.id}
+                  className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                    selectedParentId === c.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="parentCluster"
+                    value={c.id}
+                    checked={selectedParentId === c.id}
+                    onChange={(e) => setSelectedParentId(e.target.value)}
+                    className="sr-only"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">{c.name}</span>
+                    {c.is_pillar_page && (
+                      <span className="ml-2 px-1 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">Pillar</span>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowParentModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={updateParentCluster}
+                disabled={updatingParent}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center space-x-2"
+              >
+                {updatingParent && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Guardar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

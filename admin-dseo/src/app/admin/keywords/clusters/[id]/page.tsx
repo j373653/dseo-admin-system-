@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabaseClient } from '@/lib/supabase'
 import { getIntentBadge, SearchIntent } from '@/lib/search-intent'
-import { ArrowLeft, Loader2, MoreVertical, Trash2, ArrowRightLeft, Search, Filter, CheckSquare, Square, X } from 'lucide-react'
+import { ArrowLeft, Loader2, MoreVertical, Trash2, ArrowRightLeft, Search, Filter, CheckSquare, Square, X, Save, FileText, Link2 } from 'lucide-react'
 
 interface Cluster {
   id: string
@@ -14,6 +14,9 @@ interface Cluster {
   keyword_count: number
   search_volume_total: number
   created_at: string
+  is_pillar_page: boolean
+  parent_cluster_id: string | null
+  pillar_content_data: Record<string, unknown> | null
 }
 
 interface Keyword {
@@ -52,6 +55,18 @@ export default function ClusterDetailPage() {
   const [targetClusters, setTargetClusters] = useState<MoveTarget[]>([])
   const [selectedTargetCluster, setSelectedTargetCluster] = useState<string>('')
   const [processing, setProcessing] = useState(false)
+  
+  // Pillar Page state
+  const [isPillar, setIsPillar] = useState(false)
+  const [pillarUrl, setPillarUrl] = useState('')
+  const [pillarTitle, setPillarTitle] = useState('')
+  const [pillarStatus, setPillarStatus] = useState<string>('planned')
+  const [pillarNotes, setPillarNotes] = useState('')
+  const [savingPillar, setSavingPillar] = useState(false)
+
+  // Parent cluster options
+  const [allClusters, setAllClusters] = useState<MoveTarget[]>([])
+  const [parentCluster, setParentCluster] = useState<string>('')
 
   useEffect(() => {
     fetchData()
@@ -74,6 +89,17 @@ export default function ClusterDetailPage() {
       
       if (clusterData) {
         setCluster(clusterData)
+        // Initialize pillar page fields
+        setIsPillar(clusterData.is_pillar_page || false)
+        setParentCluster(clusterData.parent_cluster_id || '')
+        
+        const pillarData = clusterData.pillar_content_data as Record<string, unknown> | null
+        if (pillarData) {
+          setPillarUrl((pillarData.url as string) || '')
+          setPillarTitle((pillarData.title as string) || '')
+          setPillarStatus((pillarData.status as string) || 'planned')
+          setPillarNotes((pillarData.notes as string) || '')
+        }
       }
 
       // Obtener keywords del cluster
@@ -85,6 +111,15 @@ export default function ClusterDetailPage() {
         .order('search_volume', { ascending: false })
 
       setKeywords(keywordsData || [])
+
+      // Obtener todos los clusters (para seleccionar padre)
+      const { data: allClustersData } = await supabaseClient
+        .from('d_seo_admin_keyword_clusters')
+        .select('id, name')
+        .neq('id', clusterId)
+        .order('name')
+      
+      setAllClusters(allClustersData || [])
     } catch (err) {
       console.error('Error fetching data:', err)
     } finally {
@@ -219,6 +254,33 @@ export default function ClusterDetailPage() {
     }
   }
 
+  const savePillarConfig = async () => {
+    setSavingPillar(true)
+    try {
+      await supabaseClient
+        .from('d_seo_admin_keyword_clusters')
+        .update({
+          is_pillar_page: isPillar,
+          parent_cluster_id: parentCluster || null,
+          pillar_content_data: {
+            url: pillarUrl,
+            title: pillarTitle,
+            status: pillarStatus,
+            notes: pillarNotes
+          }
+        })
+        .eq('id', clusterId)
+
+      await fetchData()
+      alert('✅ Configuración de Pillar Page guardada')
+    } catch (err) {
+      console.error('Error saving pillar config:', err)
+      alert('Error al guardar la configuración')
+    } finally {
+      setSavingPillar(false)
+    }
+  }
+
   const calculateMetrics = () => {
     const totalVolume = keywords.reduce((sum, kw) => sum + (kw.search_volume || 0), 0)
     const avgDifficulty = keywords.length > 0
@@ -323,6 +385,113 @@ export default function ClusterDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Pillar Page Configuration */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <FileText className="w-5 h-5 text-purple-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Configuración Pillar Page</h3>
+          </div>
+          <button
+            onClick={savePillarConfig}
+            disabled={savingPillar}
+            className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+          >
+            {savingPillar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>Guardar</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Toggle Pillar */}
+          <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+            <div>
+              <p className="font-medium text-gray-900">Es Pillar Page</p>
+              <p className="text-sm text-gray-500">Marcar si este cluster es una página pilar</p>
+            </div>
+            <button
+              onClick={() => setIsPillar(!isPillar)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                isPillar ? 'bg-purple-600' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isPillar ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          {/* Parent Cluster */}
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Link2 className="w-4 h-4 inline mr-1" />
+              Cluster Padre (opcional)
+            </label>
+            <select
+              value={parentCluster}
+              onChange={(e) => setParentCluster(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Sin cluster padre</option>
+              {allClusters.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">URL de la página</label>
+            <input
+              type="text"
+              value={pillarUrl}
+              onChange={(e) => setPillarUrl(e.target.value)}
+              placeholder="/servicios/seo/barcelona/"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Título del contenido</label>
+            <input
+              type="text"
+              value={pillarTitle}
+              onChange={(e) => setPillarTitle(e.target.value)}
+              placeholder="SEO Barcelona - Agencia de posicionamiento"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+            <select
+              value={pillarStatus}
+              onChange={(e) => setPillarStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="planned">Planificado</option>
+              <option value="in_progress">En progreso</option>
+              <option value="published">Publicado</option>
+              <option value="update">Actualizar</option>
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Notas / Estrategia</label>
+            <textarea
+              value={pillarNotes}
+              onChange={(e) => setPillarNotes(e.target.value)}
+              rows={3}
+              placeholder="Notas sobre la estrategia de contenido..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Toolbar */}
       <div className="bg-white rounded-lg shadow p-4 space-y-4">
