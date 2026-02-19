@@ -75,7 +75,7 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filter, setFilter] = useState<string>('all')
-  const [sortBy, setSortBy] = useState<'priority' | 'volume' | 'name'>('priority')
+  const [sortBy, setSortBy] = useState<'priority' | 'volume' | 'name' | 'keywords'>('priority')
   const [calculating, setCalculating] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [proposing, setProposing] = useState(false)
@@ -246,13 +246,14 @@ export default function OverviewPage() {
 
   const filteredClusters = clusters
     .filter(c => {
-      if (filter !== 'all' && c.content_type_target !== filter) return false
+      if (filter !== 'all' && c.intent !== filter) return false
       if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
       return true
     })
     .sort((a, b) => {
       if (sortBy === 'priority') return (b.priority_score?.final_priority || 0) - (a.priority_score?.final_priority || 0)
       if (sortBy === 'volume') return (b.search_volume_total || 0) - (a.search_volume_total || 0)
+      if (sortBy === 'keywords') return (b.keyword_count || 0) - (a.keyword_count || 0)
       return a.name.localeCompare(b.name)
     })
 
@@ -359,18 +360,20 @@ export default function OverviewPage() {
           onChange={(e) => setFilter(e.target.value)}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="all">Todos los tipos</option>
-          <option value="service">Service</option>
-          <option value="blog">Blog</option>
-          <option value="landing">Landing</option>
+          <option value="all">Todas las intenciones</option>
+          <option value="transactional">Transactional</option>
+          <option value="commercial">Commercial</option>
+          <option value="informational">Informational</option>
+          <option value="navigational">Navigational</option>
         </select>
         <select
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as 'priority' | 'volume' | 'name')}
+          onChange={(e) => setSortBy(e.target.value as 'priority' | 'volume' | 'name' | 'keywords')}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="priority">Ordenar por prioridad</option>
           <option value="volume">Ordenar por volumen</option>
+          <option value="keywords">Ordenar por keywords</option>
           <option value="name">Ordenar por nombre</option>
         </select>
       </div>
@@ -511,13 +514,6 @@ export default function OverviewPage() {
         >
           <List className="w-4 h-4" />
           <span>Ver lista técnica</span>
-        </button>
-        <button
-          onClick={() => router.push('/admin/keywords/strategy')}
-          className="flex items-center space-x-1 text-indigo-600 hover:underline"
-        >
-          <BarChart3 className="w-4 h-4" />
-          <span>Ver analytics</span>
         </button>
       </div>
     </div>

@@ -397,7 +397,6 @@ export default function ClustersPage() {
 
   const createCluster = async (intent?: SearchIntent) => {
     if (creatingCluster) return // Prevenir duplicados por clics múltiples
-    
     const keywordsToCluster = intent 
       ? intentGroups.find(g => g.intent === intent)?.keywords || []
       : selectedKeywords.length > 0 
@@ -409,6 +408,8 @@ export default function ClustersPage() {
     const name = newClusterName || (intent ? intentGroups.find(g => g.intent === intent)?.suggestedName : '')
     if (!name) return
 
+    const totalVolume = keywordsToCluster.reduce((sum, k) => sum + (k.search_volume || 0), 0)
+
     setCreatingCluster(intent || 'manual')
 
     try {
@@ -418,6 +419,7 @@ export default function ClustersPage() {
           name,
           description: `Cluster basado en intención: ${intent || 'manual'}`,
           keyword_count: keywordsToCluster.length,
+          search_volume_total: totalVolume,
           intent: intent || 'manual'
         })
         .select()
