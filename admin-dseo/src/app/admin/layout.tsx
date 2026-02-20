@@ -111,6 +111,12 @@ export default function AdminLayout({
           >
             📤 Importar CSV
           </Link>
+          <Link
+            href="/admin/keywords"
+            className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname === '/admin/keywords' ? 'bg-gray-800' : ''}`}
+          >
+            🔑 Keywords
+          </Link>
 
           <Link
             href="/admin/content"

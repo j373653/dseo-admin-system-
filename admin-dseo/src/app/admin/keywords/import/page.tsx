@@ -104,23 +104,35 @@ export default function ImportKeywordsPage() {
         const lines = text.split('\n').filter(line => line.trim())
         const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''))
         
+        const keywordPatterns = ['keyword', 'palabra', 'term', 'query', 'key', 'kw', 'termine']
+        const volumePatterns = ['volume', 'volumen', 'search volume', 'sv', 'busquedas', 'searches', 'monthly']
+        const difficultyPatterns = ['difficulty', 'kd', 'dificultad', 'keyword difficulty', 'competencia', 'competition']
+        const cpcPatterns = ['cpc', 'cost per click', 'coste', 'bid']
+        
         const keywordIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('keyword') || 
-          h.toLowerCase().includes('palabra') ||
-          h.toLowerCase() === 'kw'
+          keywordPatterns.some(p => h.toLowerCase().includes(p))
         )
         
         const volumeIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('volume') || 
-          h.toLowerCase().includes('volumen') ||
-          h.toLowerCase().includes('search')
+          volumePatterns.some(p => h.toLowerCase().includes(p))
         )
         
         const difficultyIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('difficulty') || 
-          h.toLowerCase().includes('dificultad') ||
-          h.toLowerCase().includes('kd')
+          difficultyPatterns.some(p => h.toLowerCase().includes(p))
         )
+
+        const cpcIndex = headers.findIndex(h => 
+          cpcPatterns.some(p => h.toLowerCase().includes(p))
+        )
+
+        const detectedFields = {
+          keyword: keywordIndex >= 0 ? headers[keywordIndex] : 'Columna 1 (auto)',
+          volume: volumeIndex >= 0 ? headers[volumeIndex] : 'No detectado',
+          difficulty: difficultyIndex >= 0 ? headers[difficultyIndex] : 'No detectado',
+          cpc: cpcIndex >= 0 ? headers[cpcIndex] : 'No detectado'
+        }
+        
+        console.log('Campos detectados:', detectedFields)
 
         const rows = lines.slice(1)
         const importedKeywordsList: ImportedKeyword[] = []
@@ -131,10 +143,11 @@ export default function ImportKeywordsPage() {
           const cells = line.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''))
           
           const keywordText = keywordIndex >= 0 ? cells[keywordIndex] : cells[0]
-          if (!keywordText) continue
+          if (!keywordText || keywordText.length < 3) continue
           
-          const searchVolume = volumeIndex >= 0 ? parseInt(cells[volumeIndex]) || 0 : 0
-          const difficulty = difficultyIndex >= 0 ? parseInt(cells[difficultyIndex]) || null : null
+          const searchVolume = volumeIndex >= 0 ? parseInt(cells[volumeIndex]?.replace(/[^0-9]/g, '') || '0') || 0 : 0
+          const difficulty = difficultyIndex >= 0 ? parseInt(cells[difficultyIndex]?.replace(/[^0-9]/g, '') || '0') || null : null
+          const cpc = cpcIndex >= 0 ? parseFloat(cells[cpcIndex]?.replace(/[^0-9.]/g, '') || '0') || null : null
           
           const { data: existing } = await supabaseClient
             .from('d_seo_admin_raw_keywords')
@@ -160,6 +173,7 @@ export default function ImportKeywordsPage() {
             keyword: keywordText,
             search_volume: searchVolume,
             difficulty: difficulty,
+            cpc: cpc,
             source: 'csv_import',
             status: 'pending',
             raw_data: Object.fromEntries(headers.map((h, i) => [h, cells[i] || '']))
