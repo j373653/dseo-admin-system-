@@ -116,7 +116,7 @@ export default function KeywordsPage() {
         return
       }
 
-      const normalizedMap = new Map<string, { originalId: string; volume: number; ids: string[] }>()
+      const normalizedMap: any = new Map()
 
       allKeywords.forEach((k: any) => {
         const kw = String(k.keyword || '').trim()
