@@ -48,23 +48,38 @@ const PROTECTED_URLS = [
   { url: '/servicios/sectores/', keywords: ['sector'] },
 ]
 
-function matchClusterToSitemap(clusterName: string, intent?: string): { match: boolean; url?: string; action: 'update' | 'create' } {
+function matchClusterToSitemap(clusterName: string, intent?: string, volume: number = 0): { 
+  match: boolean; 
+  url?: string; 
+  action: 'update' | 'create' | 'ignore'
+  reason?: string
+} {
   const nameLower = clusterName.toLowerCase()
+  
   for (const page of PROTECTED_URLS) {
     for (const kw of page.keywords) {
       if (nameLower.includes(kw) || kw.includes(nameLower)) {
-        return { match: true, url: page.url, action: 'update' }
+        return { match: true, url: page.url, action: 'update', reason: 'URL existente del sitemap' }
       }
     }
   }
   
-  const slug = nameLower.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  
-  if (intent === 'informational' || nameLower.includes('como') || nameLower.includes('guía') || nameLower.includes('qué es') || nameLower.includes('definición')) {
-    return { match: false, url: `/blog/${slug}/`, action: 'create' }
+  const threshold = 50
+  if (volume < threshold) {
+    return { match: false, action: 'ignore', reason: `Volumen ${volume} < ${threshold} (no prioritario)` }
   }
   
-  return { match: false, url: `/servicios/${slug}/`, action: 'create' }
+  const slug = nameLower.replace(/[^a-z0-9áéíóúüñ]+/g, '-').replace(/^-|-$/g, '')
+  
+  if (intent === 'informational' || nameLower.includes('como') || nameLower.includes('guía') || nameLower.includes('qué es') || nameLower.includes('definición')) {
+    return { match: false, url: `/blog/${slug}/`, action: 'create', reason: 'Artículo informativo' }
+  }
+  
+  if (intent === 'transactional' || intent === 'commercial') {
+    return { match: false, url: `/servicios/${slug}/`, action: 'create', reason: `Servicio (volumen ${volume} > ${threshold})` }
+  }
+  
+  return { match: false, url: `/servicios/${slug}/`, action: 'create', reason: 'Servicio por defecto' }
 }
 
 function suggestContentType(intent: string, clusterName: string): string {
@@ -398,11 +413,15 @@ export default function OverviewPage() {
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Actualizar existente</p>
-          <p className="text-2xl font-bold text-amber-600">{clusters.filter(c => matchClusterToSitemap(c.name, c.intent).action === 'update').length}</p>
+          <p className="text-2xl font-bold text-amber-600">{clusters.filter(c => matchClusterToSitemap(c.name, c.intent, c.search_volume_total).action === 'update').length}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Crear nuevo</p>
-          <p className="text-2xl font-bold text-green-600">{clusters.filter(c => matchClusterToSitemap(c.name, c.intent).action === 'create').length}</p>
+          <p className="text-2xl font-bold text-green-600">{clusters.filter(c => matchClusterToSitemap(c.name, c.intent, c.search_volume_total).action === 'create').length}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <p className="text-sm text-gray-600">Ignorar (bajo volumen)</p>
+          <p className="text-2xl font-bold text-gray-400">{clusters.filter(c => matchClusterToSitemap(c.name, c.intent, c.search_volume_total).action === 'ignore').length}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-600">Canibalizaciones</p>
@@ -482,7 +501,7 @@ export default function OverviewPage() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredClusters.map(cluster => {
-                const sitemapMatch = matchClusterToSitemap(cluster.name, cluster.intent)
+                const sitemapMatch = matchClusterToSitemap(cluster.name, cluster.intent, cluster.search_volume_total)
                 const links = getClusterLinks(cluster.id)
                 const priority = cluster.priority_score?.final_priority || 0
 
@@ -511,12 +530,19 @@ export default function OverviewPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        sitemapMatch.action === 'update' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                        sitemapMatch.action === 'update' ? 'bg-amber-100 text-amber-700' :
+                        sitemapMatch.action === 'ignore' ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'
                       }`}>
-                        {sitemapMatch.action === 'update' ? '🔄' : '🆕'} {sitemapMatch.action === 'update' ? 'Update' : 'New'}
+                        {sitemapMatch.action === 'update' ? '🔄 Update' : 
+                         sitemapMatch.action === 'ignore' ? '⏸️ Ignorar' : '🆕 New'}
                       </span>
                       {sitemapMatch.url && (
                         <p className="text-xs text-gray-400 mt-1">{sitemapMatch.url}</p>
+                      )}
+                      {sitemapMatch.reason && (
+                        <p className="text-xs text-gray-500 mt-1" title={sitemapMatch.reason}>
+                          {sitemapMatch.reason}
+                        </p>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">

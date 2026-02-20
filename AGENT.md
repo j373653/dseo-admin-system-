@@ -43,6 +43,7 @@ Este documento es la fuente de verdad para cualquier agente que trabaje en el ec
 - `d_seo_admin_keyword_clusters` - Clusters de keywords
 - `d_seo_admin_content_pages` - Páginas de contenido
 - `d_seo_admin_cluster_relations` - Relaciones entre clusters
+- `d_seo_admin_sitemap_pages` - URLs del sitemap (18 protegidas)
 - `d_seo_leads` - Leads capturados
 
 ### 2.2 d-seo-web (Web Corporativa)
@@ -261,6 +262,18 @@ Ver `docs/AI_MODELS_GUIDE.md` para detalles completos sobre rates, estrategias y
 - `admin-dseo/src/app/admin/keywords/import/page.tsx` (lógica importación)
 - `admin-dseo/src/app/admin/keywords/overview/page.tsx` (descartar, filtros, ordenación)
 
+### Fase 5: Sistema de Decisión Crear/Actualizar + Limpieza
+- [x] Sistema de decisión basado en volumen (umbral >50 para transactional/commercial)
+- [x] Tabla sitemap_pages con las 18 URLs protegidas
+- [x] Acción "Ignorar" para clusters con bajo volumen
+- [x] Mejora UI Keywords (selección múltiple, acciones masivas)
+- [x] Botón "Limpiar BBDD" (deduplicación, normalización)
+- [x] Detección automática de columnas CSV (ubersuggest, mangools, semrush)
+
+**Archivos:**
+- `docs/database/10_sitemap_pages.sql` (tabla sitemap_pages)
+- `admin-dseo/src/app/admin/keywords/page.tsx` (gestión keywords)
+
 ---
 
 ## 7. Integración Futura (Roadmap)
@@ -358,6 +371,7 @@ GOOGLE_AI_API_KEY=...
 
 | Fecha | Versión | Cambios |
 |-------|---------|---------|
+| 2026-02-20 | 1.2 | Añadido Fase 5: Sistema decisión Crear/Actualizar + Limpieza Keywords |
 | 2026-02-19 | 1.1 | Añadido Fase 4: Importar CSV + Descartar Keywords |
 | 2026-02-19 | 1.0 | Versión inicial del documento |
 
