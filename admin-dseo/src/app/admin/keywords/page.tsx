@@ -61,7 +61,7 @@ export default function KeywordsPage() {
       
       const keywordsWithIntent = kwData.map(k => ({
         ...k,
-        intent: k.intent || detectSearchIntent(k.keyword) || 'unknown'
+        intent: k.intent || (detectSearchIntent(k.keyword)?.intent === 'unknown' ? null : detectSearchIntent(k.keyword)?.intent) || null
       }))
 
       setKeywords(keywordsWithIntent)
@@ -206,7 +206,8 @@ export default function KeywordsPage() {
     }
   }
 
-  const getIntentBadge = (intent: string) => {
+  const getIntentBadge = (intent: string | null | undefined) => {
+    const i = intent || 'unknown'
     const colors: Record<string, string> = {
       transactional: 'bg-blue-100 text-blue-800',
       commercial: 'bg-purple-100 text-purple-800',
