@@ -86,11 +86,11 @@ export default function KeywordsPage() {
 
     setCleaning(true)
     try {
-      const { data: allKeywords } = await supabaseClient
+      const { data: allKeywords, error } = await supabaseClient
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword, search_volume, status')
-        .neq('status', 'discarded')
 
+      if (error) throw error
       if (!allKeywords || allKeywords.length === 0) {
         alert('No hay keywords para limpiar')
         setCleaning(false)
@@ -100,8 +100,12 @@ export default function KeywordsPage() {
       const normalizedMap = new Map<string, { id: string; volume: number; ids: string[] }>()
 
       allKeywords.forEach((k: any) => {
-        const norm = String(k.keyword || '').toLowerCase().trim()
-        if (norm.length < 3) return
+        if (k.status === 'discarded') return
+        
+        const kw = String(k.keyword || '').trim()
+        if (kw.length < 3) return
+        
+        const norm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         
         if (normalizedMap.has(norm)) {
           const existing = normalizedMap.get(norm)!
@@ -117,7 +121,9 @@ export default function KeywordsPage() {
       })
 
       let duplicatesRemoved = 0
-      for (const [_, data] of normalizedMap) {
+      let shortRemoved = 0
+      
+      for (const [norm, data] of normalizedMap) {
         if (data.ids.length > 1) {
           const masterId = data.id
           const duplicateIds = data.ids.slice(1)
@@ -136,8 +142,20 @@ export default function KeywordsPage() {
         }
       }
 
+      const shortKeywords = allKeywords.filter((k: any) => 
+        k.status !== 'discarded' && String(k.keyword || '').trim().length < 3
+      )
+      
+      if (shortKeywords.length > 0) {
+        await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .update({ status: 'discarded' })
+          .in('id', shortKeywords.map((k: any) => k.id))
+        shortRemoved = shortKeywords.length
+      }
+
       await fetchData()
-      alert(`Limpieza completada: ${duplicatesRemoved} duplicados eliminados`)
+      alert(`Limpieza completada:\n• ${duplicatesRemoved} duplicados eliminados\n• ${shortRemoved} keywords muy cortas descartadas`)
     } catch (err) {
       console.error('Error:', err)
       alert('Error durante la limpieza')
