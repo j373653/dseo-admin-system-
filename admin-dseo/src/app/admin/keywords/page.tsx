@@ -38,25 +38,14 @@ function getIntentBadgeColor(intent: string | null | undefined): string {
   return colors[intent || ''] || 'bg-gray-100 text-gray-800'
 }
 
-function normalizeKeyword(keyword: string): string {
-  let kw = keyword.toLowerCase().trim()
-  
-  kw = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  
-  const words = kw.split(' ')
-  const normalizedWords = words.map(word => {
-    if (word.endsWith('ones')) return word.slice(0, -3)
-    if (word.endsWith('os') || word.endsWith('as')) return word.slice(0, -2)
-    if (word.endsWith('es')) return word.slice(0, -2)
-    if (word.endsWith('s')) return word.slice(0, -1)
-    return word
-  })
-  
-  kw = normalizedWords.join(' ')
-  
-  kw = kw.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ')
-  
-  return kw.trim()
+function normalizeKeyword(kw: string): string {
+  return kw
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/s$/, '')
 }
 
 export default function KeywordsPage() {
@@ -110,6 +99,7 @@ export default function KeywordsPage() {
       const { data: allKeywords, error } = await supabaseClient
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword, search_volume, status')
+        .neq('status', 'discarded')
 
       if (error) throw error
       if (!allKeywords || allKeywords.length === 0) {
@@ -118,11 +108,9 @@ export default function KeywordsPage() {
         return
       }
 
-      const normalizedMap = new Map<string, { id: string; volume: number; ids: string[] }>()
+      const normalizedMap = new Map<string, { originalId: string; volume: number; ids: string[] }>()
 
       allKeywords.forEach((k: any) => {
-        if (k.status === 'discarded') return
-        
         const kw = String(k.keyword || '').trim()
         if (kw.length < 3) return
         
@@ -134,49 +122,50 @@ export default function KeywordsPage() {
           existing.ids.push(k.id)
         } else {
           normalizedMap.set(norm, { 
-            id: k.id, 
+            originalId: k.id, 
             volume: Number(k.search_volume) || 0, 
             ids: [k.id] 
           })
         }
       })
 
+      console.log('Mapa de normalización:', Array.from(normalizedMap.entries()).slice(0, 10))
+
       let duplicatesRemoved = 0
-      let shortRemoved = 0
+      const toDiscard: string[] = []
+      const toUpdate: { id: string; volume: number }[] = []
       
       for (const [norm, data] of normalizedMap) {
         if (data.ids.length > 1) {
-          const masterId = data.id
-          const duplicateIds = data.ids.slice(1)
-
-          await supabaseClient
-            .from('d_seo_admin_raw_keywords')
-            .update({ search_volume: data.volume })
-            .eq('id', masterId)
-
-          await supabaseClient
-            .from('d_seo_admin_raw_keywords')
-            .update({ status: 'discarded' })
-            .in('id', duplicateIds)
-
-          duplicatesRemoved += duplicateIds.length
+          toUpdate.push({ id: data.originalId, volume: data.volume })
+          toDiscard.push(...data.ids.slice(1))
+          duplicatesRemoved += data.ids.length - 1
         }
       }
 
-      const shortKeywords = allKeywords.filter((k: any) => 
-        k.status !== 'discarded' && String(k.keyword || '').trim().length < 3
-      )
-      
-      if (shortKeywords.length > 0) {
+      console.log('A descartar:', toDiscard)
+      console.log('A actualizar:', toUpdate)
+
+      if (toDiscard.length > 0) {
+        const batchSize = 100
+        for (let i = 0; i < toDiscard.length; i += batchSize) {
+          const batch = toDiscard.slice(i, i + batchSize)
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ status: 'discarded' })
+            .in('id', batch)
+        }
+      }
+
+      for (const update of toUpdate) {
         await supabaseClient
           .from('d_seo_admin_raw_keywords')
-          .update({ status: 'discarded' })
-          .in('id', shortKeywords.map((k: any) => k.id))
-        shortRemoved = shortKeywords.length
+          .update({ search_volume: update.volume })
+          .eq('id', update.id)
       }
 
       await fetchData()
-      alert(`Limpieza completada:\n• ${duplicatesRemoved} duplicados eliminados\n• ${shortRemoved} keywords muy cortas descartadas`)
+      alert(`Limpieza completada:\n• ${duplicatesRemoved} duplicados eliminados`)
     } catch (err) {
       console.error('Error:', err)
       alert('Error durante la limpieza')
@@ -268,6 +257,14 @@ export default function KeywordsPage() {
           </p>
         </div>
         <div className="flex space-x-3">
+          <button
+            onClick={() => fetchData()}
+            disabled={loading}
+            className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Actualizar</span>
+          </button>
           <button
             onClick={cleanDatabase}
             disabled={cleaning}
