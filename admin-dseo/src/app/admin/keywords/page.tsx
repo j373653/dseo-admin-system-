@@ -45,7 +45,15 @@ function normalizeKeyword(kw: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
-    .replace(/s$/, '')
+    .split(' ')
+    .map(word => {
+      if (word.endsWith('ones')) return word.slice(0, -3)
+      if (word.endsWith('os') || word.endsWith('as')) return word.slice(0, -2)
+      if (word.endsWith('es') && word.length > 3) return word.slice(0, -2)
+      if (word.endsWith('s') && word.length > 2) return word.slice(0, -1)
+      return word
+    })
+    .join(' ')
 }
 
 export default function KeywordsPage() {
@@ -120,16 +128,24 @@ export default function KeywordsPage() {
           const existing = normalizedMap.get(norm)!
           existing.volume += Number(k.search_volume) || 0
           existing.ids.push(k.id)
+          existing.originals = [...(existing.originals || []), k.keyword]
         } else {
           normalizedMap.set(norm, { 
             originalId: k.id, 
             volume: Number(k.search_volume) || 0, 
-            ids: [k.id] 
+            ids: [k.id],
+            originals: [k.keyword]
           })
         }
       })
 
-      console.log('Mapa de normalización:', Array.from(normalizedMap.entries()).slice(0, 10))
+      const duplicates = Array.from(normalizedMap.entries()).filter(([_, d]) => d.ids.length > 1)
+      console.log('=== DUPLICADOS ENCONTRADOS ===')
+      console.log('Total keywords procesadas:', allKeywords.length)
+      console.log('Grupos de duplicados:', duplicates.length)
+      duplicates.forEach(([norm, data]) => {
+        console.log(`"${norm}":`, data.originals, '→', data.ids.length, 'keywords')
+      })
 
       let duplicatesRemoved = 0
       const toDiscard: string[] = []
