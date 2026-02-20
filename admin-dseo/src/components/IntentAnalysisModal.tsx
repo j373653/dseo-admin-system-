@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { detectSearchIntent, getIntentBadge, SearchIntent } from '@/lib/search-intent'
-import { analyzeKeywordsWithAI, AIKeywordAnalysis } from '@/lib/ai-analysis'
+import { analyzeKeywordsWithAI, AICluster, AIAnalysisResult, AIKeywordAnalysis } from '@/lib/ai-analysis'
 import { cleanKeywordsForAI, calculateProcessingStrategy, formatTokenSavings } from '@/lib/keyword-cleaner'
 import { X, Info, AlertCircle, Brain, Loader2, CheckCircle, Sparkles, Trash2 } from 'lucide-react'
 
@@ -13,12 +13,31 @@ interface KeywordData {
   difficulty: number
 }
 
+function convertToLegacyFormat(results: AIAnalysisResult): AIKeywordAnalysis[] {
+  const analyses: AIKeywordAnalysis[] = []
+  
+  for (const cluster of results.clusters) {
+    for (const keyword of cluster.keywords) {
+      analyses.push({
+        keyword,
+        cluster: cluster.name,
+        intent: cluster.intent as SearchIntent,
+        confidence: 0.8,
+        reasoning: `Part of cluster "${cluster.name}"`,
+        contentType: cluster.is_pillar ? 'landing' : 'blog'
+      })
+    }
+  }
+  
+  return analyses
+}
+
 interface IntentAnalysisModalProps {
   isOpen: boolean
   onClose: () => void
   intent: SearchIntent
   keywords: KeywordData[]
-  onApplyAIAnalysis?: (analyses: AIKeywordAnalysis[]) => void
+  onApplyAIAnalysis?: (results: AIAnalysisResult) => void
 }
 
 interface CleaningResult {
@@ -37,7 +56,7 @@ export default function IntentAnalysisModal({
 }: IntentAnalysisModalProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
-  const [aiResults, setAiResults] = useState<AIKeywordAnalysis[] | null>(null)
+  const [aiResults, setAiResults] = useState<AIAnalysisResult | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
   const [showAIResults, setShowAIResults] = useState(false)
   const [cleaningResult, setCleaningResult] = useState<CleaningResult | null>(null)
@@ -93,7 +112,7 @@ export default function IntentAnalysisModal({
         throw new Error(result.error || 'Error en el análisis')
       }
       
-      setAiResults(result.analyses)
+      setAiResults(result)
       setShowAIResults(true)
       setProgress({ 
         current: result.batchesProcessed || 0, 
@@ -215,7 +234,7 @@ export default function IntentAnalysisModal({
             <div className="flex items-center space-x-3">
               <CheckCircle className="w-5 h-5 text-purple-600" />
               <span className="text-sm text-purple-900">
-                Análisis de Gemini completado para {aiResults.length} keywords
+                Análisis de Gemini completado para {aiResults.totalAnalyzed} keywords • {aiResults.clusters.length} clusters
               </span>
             </div>
             <div className="flex space-x-3">
@@ -260,7 +279,7 @@ export default function IntentAnalysisModal({
         <div className="flex-1 overflow-y-auto p-4">
           {showAIResults && aiResults ? (
             <AIResultsView 
-              analyses={aiResults.filter(a => 
+              analyses={convertToLegacyFormat(aiResults).filter(a => 
                 a.keyword.toLowerCase().includes(searchTerm.toLowerCase())
               )} 
             />

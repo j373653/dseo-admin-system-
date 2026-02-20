@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase'
+import { analyzeKeywordsWithAI, AIAnalysisResult } from '@/lib/ai-analysis'
 import { 
-  Loader2, Trash2, CheckSquare, Square, XCircle, RefreshCw
+  Loader2, Trash2, CheckSquare, Square, XCircle, RefreshCw, Sparkles, Eye, Check, X
 } from 'lucide-react'
 
 interface Keyword {
@@ -66,6 +67,11 @@ export default function KeywordsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [cleaning, setCleaning] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  
+  const [analyzingAI, setAnalyzingAI] = useState(false)
+  const [aiResults, setAiResults] = useState<AIAnalysisResult | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [applyingChanges, setApplyingChanges] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -258,6 +264,125 @@ export default function KeywordsPage() {
     }
   }
 
+  const analyzeWithAI = async () => {
+    if (selectedIds.length === 0) {
+      alert('Selecciona keywords para analizar')
+      return
+    }
+
+    const selectedKeywords = keywords
+      .filter(k => selectedIds.includes(k.id))
+      .map(k => k.keyword)
+
+    if (selectedKeywords.length === 0) {
+      alert('No se encontraron keywords válidas')
+      return
+    }
+
+    setAnalyzingAI(true)
+    try {
+      console.log(`Starting AI analysis for ${selectedKeywords.length} keywords...`)
+      const results = await analyzeKeywordsWithAI(selectedKeywords)
+      
+      if (!results.success) {
+        alert(`Error: ${results.error || 'Error desconocido'}`)
+        return
+      }
+
+      console.log('AI Analysis Results:', results)
+      setAiResults(results)
+      setShowPreview(true)
+    } catch (err: any) {
+      console.error('Error in AI analysis:', err)
+      alert(`Error: ${err.message}`)
+    } finally {
+      setAnalyzingAI(false)
+    }
+  }
+
+  const applyAIChanges = async () => {
+    if (!aiResults) return
+
+    setApplyingChanges(true)
+    try {
+      let clustersCreated = 0
+      let keywordsClustered = 0
+
+      for (const cluster of aiResults.clusters) {
+        const { data: clusterData, error: clusterError } = await supabaseClient
+          .from('d_seo_admin_keyword_clusters')
+          .insert({
+            name: cluster.name,
+            intent: cluster.intent,
+            is_pillar: cluster.is_pillar,
+            content_type: cluster.is_pillar ? 'landing' : 'blog'
+          })
+          .select()
+          .single()
+
+        if (clusterError) {
+          console.error('Error creating cluster:', clusterError)
+          continue
+        }
+
+        clustersCreated++
+
+        const clusterKeywords = cluster.keywords
+        const { data: keywordData } = await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .select('id')
+          .in('keyword', clusterKeywords)
+
+        if (keywordData && keywordData.length > 0) {
+          const keywordIds = keywordData.map(k => k.id)
+          
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ 
+              cluster_id: clusterData.id,
+              status: 'clustered',
+              intent: cluster.intent
+            })
+            .in('id', keywordIds)
+
+          keywordsClustered += keywordIds.length
+        }
+      }
+
+      let duplicatesRemoved = 0
+      for (const dupGroup of aiResults.duplicates) {
+        const keywordsToKeep = dupGroup.keywords.slice(0, 1)
+        const keywordsToDiscard = dupGroup.keywords.slice(1)
+
+        if (keywordsToDiscard.length > 0) {
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ status: 'discarded', cluster_id: null })
+            .in('keyword', keywordsToDiscard)
+          
+          duplicatesRemoved += keywordsToDiscard.length
+        }
+      }
+
+      setShowPreview(false)
+      setAiResults(null)
+      setSelectedIds([])
+      await fetchData()
+      
+      alert(`Cambios aplicados:\n• ${clustersCreated} clusters creados\n• ${keywordsClustered} keywords clusterizadas\n• ${duplicatesRemoved} duplicados descartados`)
+    } catch (err: any) {
+      console.error('Error applying changes:', err)
+      alert(`Error: ${err.message}`)
+    } finally {
+      setApplyingChanges(false)
+    }
+  }
+
+  const cancelAIAnalysis = () => {
+    setShowPreview(false)
+    setAiResults(null)
+  }
+
   const filteredKeywords = keywords.filter(kw => {
     const matchesSearch = String(kw.keyword || '').toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === 'all' || kw.status === statusFilter
@@ -319,6 +444,18 @@ export default function KeywordsPage() {
             {selectedIds.length} keywords seleccionadas
           </span>
           <div className="flex space-x-3">
+            <button
+              onClick={analyzeWithAI}
+              disabled={analyzingAI}
+              className="flex items-center space-x-1 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50"
+            >
+              {analyzingAI ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              <span>Analizar con IA</span>
+            </button>
             <button
               onClick={removeFromCluster}
               disabled={actionLoading}
@@ -432,6 +569,143 @@ export default function KeywordsPage() {
           </Link>
         </div>
       )}
+
+      {showPreview && aiResults && (
+        <AIPreviewModal
+          results={aiResults}
+          onApply={applyAIChanges}
+          onCancel={cancelAIAnalysis}
+          applying={applyingChanges}
+        />
+      )}
+    </div>
+  )
+}
+
+function AIPreviewModal({ 
+  results, 
+  onApply, 
+  onCancel, 
+  applying 
+}: { 
+  results: AIAnalysisResult
+  onApply: () => void
+  onCancel: () => void
+  applying: boolean
+}) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Sparkles className="w-6 h-6 text-purple-600" />
+              <h3 className="text-xl font-bold text-gray-900">Análisis Semántico con IA</h3>
+            </div>
+            <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <p className="text-gray-600 mt-1">
+            {results.totalAnalyzed} keywords analizadas • {results.clusters.length} clusters • {results.duplicates.length} duplicados • {results.canibalizations.length} canibalizaciones
+          </p>
+        </div>
+
+        <div className="p-6 overflow-y-auto max-h-[60vh]">
+          {results.duplicates.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                Duplicados Semánticos ({results.duplicates.length})
+              </h4>
+              <div className="space-y-2">
+                {results.duplicates.map((dup, i) => (
+                  <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <span className="font-medium text-red-800">{dup.keywords.join(', ')}</span>
+                    <span className="text-red-600 text-sm ml-2">→ mantener uno, descartar {dup.keywords.length - 1}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.clusters.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                Clusters Sugeridos ({results.clusters.length})
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {results.clusters.map((cluster, i) => (
+                  <div key={i} className={`border rounded-lg p-3 ${cluster.is_pillar ? 'bg-purple-50 border-purple-300' : 'bg-green-50 border-green-200'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-gray-900">{cluster.name}</span>
+                      <span className={`text-xs px-2 py-1 rounded-full ${cluster.is_pillar ? 'bg-purple-200 text-purple-800' : 'bg-green-200 text-green-800'}`}>
+                        {cluster.is_pillar ? 'PILLAR' : cluster.intent}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {cluster.keywords.map((kw, j) => (
+                        <span key={j} className="text-xs bg-white border px-2 py-0.5 rounded">{kw}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.canibalizations.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+                Canibalizaciones Detectadas ({results.canibalizations.length})
+              </h4>
+              <div className="space-y-2">
+                {results.canibalizations.map((can, i) => (
+                  <div key={i} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    <span className="font-medium text-orange-800">{can.keywords.join(' ↔ ')}</span>
+                    <span className="text-orange-600 text-sm ml-2">→ compiten por el mismo ranking</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.duplicates.length === 0 && results.clusters.length === 0 && results.canibalizations.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              No se encontraron problemas o sugerencias.
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+          <button
+            onClick={onCancel}
+            disabled={applying}
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onApply}
+            disabled={applying}
+            className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50"
+          >
+            {applying ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Aplicando...</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                <span>Aplicar Cambios</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

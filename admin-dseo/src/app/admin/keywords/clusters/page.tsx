@@ -6,7 +6,7 @@ import { supabaseClient } from '@/lib/supabase'
 import { detectSearchIntent, generateClusterName, getIntentBadge, SearchIntent } from '@/lib/search-intent'
 import IntentAnalysisModal, { UnknownKeywordsSection } from '@/components/IntentAnalysisModal'
 import { Loader2, AlertTriangle, Plus, Trash2, Edit2, BarChart3, Lightbulb, CheckCircle, XCircle, ExternalLink } from 'lucide-react'
-import { AIKeywordAnalysis } from '@/lib/ai-analysis'
+import { AIKeywordAnalysis, AIAnalysisResult } from '@/lib/ai-analysis'
 
 interface Cluster {
   id: string
@@ -319,42 +319,32 @@ export default function ClustersPage() {
     return group?.keywords || []
   }
 
-  const handleApplyAIAnalysis = async (analyses: AIKeywordAnalysis[]) => {
+  const handleApplyAIAnalysis = async (results: AIAnalysisResult) => {
     try {
-      // Agrupar análisis por cluster
-      const clusterGroups: { [key: string]: AIKeywordAnalysis[] } = {}
-      analyses.forEach(analysis => {
-        const clusterName = analysis.cluster
-        if (!clusterGroups[clusterName]) {
-          clusterGroups[clusterName] = []
-        }
-        clusterGroups[clusterName].push(analysis)
-      })
-
       let createdClusters = 0
       let assignedKeywords = 0
 
-      // Crear clusters y asignar keywords
-      for (const [clusterName, clusterAnalyses] of Object.entries(clusterGroups)) {
-        const firstAnalysis = clusterAnalyses[0]
-        
+      // Usar los clusters directamente del resultado
+      for (const cluster of results.clusters) {
         // Crear cluster
-        const { data: cluster } = await supabaseClient
+        const { data: newCluster } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
           .insert({
-            name: clusterName.replace(/_/g, ' '),
-            description: `Cluster generado por IA - Intención: ${firstAnalysis.intent} (${clusterAnalyses.length} keywords)`,
-            keyword_count: clusterAnalyses.length,
-            intent: firstAnalysis.intent
+            name: cluster.name.replace(/_/g, ' '),
+            description: `Cluster generado por IA - Intención: ${cluster.intent} (${cluster.keywords.length} keywords)`,
+            keyword_count: cluster.keywords.length,
+            intent: cluster.intent,
+            is_pillar: cluster.is_pillar,
+            content_type: cluster.is_pillar ? 'landing' : 'blog'
           })
           .select()
           .single()
 
-        if (cluster) {
+        if (newCluster) {
           createdClusters++
           
           // Obtener IDs de keywords
-          const keywordTexts = clusterAnalyses.map(a => a.keyword)
+          const keywordTexts = cluster.keywords
           const { data: keywordsData } = await supabaseClient
             .from('d_seo_admin_raw_keywords')
             .select('id, keyword')
@@ -367,9 +357,9 @@ export default function ClustersPage() {
             const { error } = await supabaseClient
               .from('d_seo_admin_raw_keywords')
               .update({ 
-                cluster_id: cluster.id, 
+                cluster_id: newCluster.id, 
                 status: 'clustered',
-                intent: firstAnalysis.intent
+                intent: cluster.intent
               })
               .in('id', keywordIds)
 

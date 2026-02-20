@@ -9,18 +9,37 @@ export interface AIKeywordAnalysis {
   contentType: string
 }
 
+export interface AIDuplicateGroup {
+  keywords: string[]
+}
+
+export interface AICluster {
+  name: string
+  keywords: string[]
+  intent: string
+  is_pillar: boolean
+}
+
+export interface AICanibalization {
+  keywords: string[]
+}
+
 export interface AIAnalysisResult {
   success: boolean
-  analyses: AIKeywordAnalysis[]
-  clusterSuggestions: { [key: string]: string[] }
+  duplicates: AIDuplicateGroup[]
+  clusters: AICluster[]
+  canibalizations: AICanibalization[]
+  intentions: { [keyword: string]: string }
   totalAnalyzed: number
   totalRequested: number
   batchesProcessed?: number
+  failedBatches?: number[]
   error?: string
 }
 
 /**
- * Analiza keywords usando Google Gemini AI
+ * Analiza keywords usando Google Gemini AI para deduplicación semántica,
+ * clustering, detección de canibalizaciones y sugerencia de pilares
  */
 export async function analyzeKeywordsWithAI(keywords: string[]): Promise<AIAnalysisResult> {
   try {
@@ -43,8 +62,10 @@ export async function analyzeKeywordsWithAI(keywords: string[]): Promise<AIAnaly
     console.error('Error analyzing with AI:', error)
     return {
       success: false,
-      analyses: [],
-      clusterSuggestions: {},
+      duplicates: [],
+      clusters: [],
+      canibalizations: [],
+      intentions: {},
       totalAnalyzed: 0,
       totalRequested: keywords.length,
       error: error.message
@@ -65,19 +86,12 @@ export async function getAIClusterSuggestions(keywords: string[]): Promise<{
     return { clusters: [], error: result.error }
   }
 
-  // Procesar clusters sugeridos
-  const clusters = Object.entries(result.clusterSuggestions).map(([name, keywords]) => {
-    const analyses = result.analyses.filter(a => a.cluster === name)
-    const avgConfidence = analyses.reduce((sum, a) => sum + a.confidence, 0) / analyses.length
-    const contentType = analyses[0]?.contentType || 'blog'
-    
-    return {
-      name,
-      keywords,
-      avgConfidence,
-      contentType
-    }
-  })
+  const clusters = result.clusters.map(cluster => ({
+    name: cluster.name,
+    keywords: cluster.keywords,
+    avgConfidence: 0.8,
+    contentType: cluster.is_pillar ? 'landing' : 'blog'
+  }))
 
   return { clusters }
 }

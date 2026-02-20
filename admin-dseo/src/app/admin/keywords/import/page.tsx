@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { supabaseClient } from '@/lib/supabase'
-import { analyzeKeywordsWithAI, AIKeywordAnalysis } from '@/lib/ai-analysis'
+import { analyzeKeywordsWithAI, AICluster } from '@/lib/ai-analysis'
 import { Brain, Loader2, CheckCircle, Sparkles, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -33,7 +33,7 @@ export default function ImportKeywordsPage() {
   const [showAnalysisOptions, setShowAnalysisOptions] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0, message: '' })
-  const [analysisResults, setAnalysisResults] = useState<AIKeywordAnalysis[] | null>(null)
+  const [analysisResults, setAnalysisResults] = useState<AICluster[] | null>(null)
   const [clustersCreated, setClustersCreated] = useState(0)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -224,7 +224,7 @@ export default function ImportKeywordsPage() {
         throw new Error(result.error || 'Error en el análisis')
       }
       
-      setAnalysisResults(result.analyses)
+      setAnalysisResults(result.clusters)
       setAnalysisProgress({ 
         current: result.batchesProcessed || 0, 
         total: result.batchesProcessed || 0, 
@@ -232,7 +232,7 @@ export default function ImportKeywordsPage() {
       })
       
       // Crear clusters automáticamente
-      await createClustersFromAI(result.analyses)
+      await createClustersFromAI(result.clusters)
       
     } catch (err: any) {
       setError('Error en análisis con IA: ' + err.message)
@@ -241,69 +241,58 @@ export default function ImportKeywordsPage() {
     }
   }
 
-  const createClustersFromAI = async (analyses: AIKeywordAnalysis[]) => {
+  const createClustersFromAI = async (clusters: AICluster[]) => {
     try {
-      // Agrupar por cluster
-      const clusterGroups: { [key: string]: AIKeywordAnalysis[] } = {}
-      analyses.forEach(analysis => {
-        const clusterName = analysis.cluster
-        if (!clusterGroups[clusterName]) {
-          clusterGroups[clusterName] = []
-        }
-        clusterGroups[clusterName].push(analysis)
-      })
-
       let createdCount = 0
+      let keywordsClustered = 0
 
-      for (const [clusterName, clusterAnalyses] of Object.entries(clusterGroups)) {
-        const firstAnalysis = clusterAnalyses[0]
-        
-        // Crear cluster
-        const { data: cluster } = await supabaseClient
+      for (const cluster of clusters) {
+        const { data: newCluster, error: clusterError } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
           .insert({
-            name: clusterName.replace(/_/g, ' '),
-            description: `Cluster automático - Intención: ${firstAnalysis.intent} (${clusterAnalyses.length} keywords)`,
-            keyword_count: clusterAnalyses.length,
-            intent: firstAnalysis.intent
+            name: cluster.name.replace(/_/g, ' '),
+            description: `Cluster automático - Intención: ${cluster.intent} (${cluster.keywords.length} keywords)`,
+            keyword_count: cluster.keywords.length,
+            intent: cluster.intent,
+            is_pillar: cluster.is_pillar,
+            content_type: cluster.is_pillar ? 'landing' : 'blog'
           })
           .select()
           .single()
 
-        if (cluster) {
+        if (clusterError) {
+          console.error('Error creating cluster:', clusterError)
+          continue
+        }
+
+        if (newCluster) {
           createdCount++
           
-          // Obtener IDs de keywords importadas
-          const keywordTexts = clusterAnalyses.map(a => a.keyword)
           const keywordIds = importedKeywords
-            .filter(k => keywordTexts.includes(k.keyword))
+            .filter(k => cluster.keywords.includes(k.keyword))
             .map(k => k.id)
           
-          // Actualizar keywords
           if (keywordIds.length > 0) {
             await supabaseClient
               .from('d_seo_admin_raw_keywords')
               .update({ 
-                cluster_id: cluster.id, 
+                cluster_id: newCluster.id, 
                 status: 'clustered',
-                intent: firstAnalysis.intent
+                intent: cluster.intent
               })
               .in('id', keywordIds)
+            
+            keywordsClustered += keywordIds.length
           }
         }
       }
 
       setClustersCreated(createdCount)
-      setSuccess(`Importación y análisis completados:\n• ${importedCount} keywords importadas\n• ${createdCount} clusters creados automáticamente`)
+      setSuccess(`Importación y análisis completados:\n• ${importedCount} keywords importadas\n• ${createdCount} clusters creados\n• ${keywordsClustered} keywords clusterizadas`)
       
-      // Redirigir a clusters después de 3 segundos
-      setTimeout(() => {
-        router.push('/admin/keywords/clusters')
-      }, 3000)
-      
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating clusters:', err)
-      setError('Error al crear clusters automáticamente')
+      setError('Error al crear clusters: ' + err.message)
     }
   }
 
