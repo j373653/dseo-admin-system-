@@ -139,7 +139,7 @@ export default function KeywordsPage() {
         }
       })
 
-      const duplicates = Array.from(normalizedMap.entries()).filter(([_, d]) => d.ids.length > 1)
+      const duplicates = Array.from(normalizedMap.entries() as [string, any][]).filter(([k, d]) => d.ids.length > 1)
       console.log('=== DUPLICADOS ENCONTRADOS ===')
       console.log('Total keywords procesadas:', allKeywords.length)
       console.log('Grupos de duplicados:', duplicates.length)
