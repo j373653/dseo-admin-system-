@@ -212,9 +212,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      duplicates: allDuplicates,
+      duplicates: allDuplicates.map(dup => ({ keywords: dup })),
       clusters: allClusters,
-      canibalizations: allCanibalizations,
+      canibalizations: allCanibalizations.map(can => ({ keywords: can })),
       intentions: allIntentions,
       totalAnalyzed: keywords.length,
       totalRequested: keywords.length,
