@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase'
-import { detectSearchIntent, SearchIntent } from '@/lib/search-intent'
+import { detectSearchIntent } from '@/lib/search-intent'
 import { 
   Loader2, Trash2, CheckSquare, Square, Filter, 
   Download, Move, XCircle, AlertTriangle, RefreshCw
