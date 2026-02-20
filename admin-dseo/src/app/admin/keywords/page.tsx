@@ -375,6 +375,7 @@ export default function KeywordsPage() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
             </table>
           </div>
         </div>
