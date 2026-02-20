@@ -284,8 +284,15 @@ export default function KeywordsPage() {
       console.log(`Starting AI analysis for ${selectedKeywords.length} keywords...`)
       const results = await analyzeKeywordsWithAI(selectedKeywords)
       
+      console.log('AI Response:', results)
+      
       if (!results.success) {
         alert(`Error: ${results.error || 'Error desconocido'}`)
+        return
+      }
+
+      if (!results.clusters || results.clusters.length === 0) {
+        alert('La IA no devolvió ningún cluster. Intenta con más keywords.')
         return
       }
 
@@ -294,7 +301,7 @@ export default function KeywordsPage() {
       setShowPreview(true)
     } catch (err: any) {
       console.error('Error in AI analysis:', err)
-      alert(`Error: ${err.message}`)
+      alert(`Error: ${err.message || 'Error desconocido'}`)
     } finally {
       setAnalyzingAI(false)
     }
