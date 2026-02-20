@@ -38,6 +38,20 @@ function getIntentBadgeColor(intent: string | null | undefined): string {
   return colors[intent || ''] || 'bg-gray-100 text-gray-800'
 }
 
+function normalizeKeyword(keyword: string): string {
+  let kw = keyword.toLowerCase().trim()
+  
+  kw = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  
+  kw = kw.replace(/es$/, '').replace(/s$/, '')
+  
+  kw = kw.replace(/ces$/, 'z')
+  
+  kw = kw.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ')
+  
+  return kw.trim()
+}
+
 export default function KeywordsPage() {
   const [keywords, setKeywords] = useState<Keyword[]>([])
   const [clusters, setClusters] = useState<Cluster[]>([])
@@ -105,7 +119,7 @@ export default function KeywordsPage() {
         const kw = String(k.keyword || '').trim()
         if (kw.length < 3) return
         
-        const norm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        const norm = normalizeKeyword(kw)
         
         if (normalizedMap.has(norm)) {
           const existing = normalizedMap.get(norm)!
