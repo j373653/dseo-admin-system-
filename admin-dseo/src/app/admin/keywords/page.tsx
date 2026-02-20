@@ -107,7 +107,6 @@ export default function KeywordsPage() {
       const { data: allKeywords, error } = await supabaseClient
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword, search_volume, status')
-        .neq('status', 'discarded')
 
       if (error) throw error
       if (!allKeywords || allKeywords.length === 0) {
@@ -116,6 +115,14 @@ export default function KeywordsPage() {
         return
       }
 
+      console.log('=== ANALISIS DE KEYWORDS ===')
+      console.log('Total en BBDD:', allKeywords.length)
+      
+      const testKeywords = ['diseños web', 'diseño web', 'disenos web']
+      testKeywords.forEach(kw => {
+        console.log(`"${kw}" -> normalize -> "${normalizeKeyword(kw)}"`)
+      })
+
       const normalizedMap: any = new Map()
 
       allKeywords.forEach((k: any) => {
@@ -123,6 +130,10 @@ export default function KeywordsPage() {
         if (kw.length < 3) return
         
         const norm = normalizeKeyword(kw)
+        
+        if (kw.toLowerCase().includes('dise')) {
+          console.log(`Keyword: "${kw}" -> Normalizado: "${norm}"`)
+        }
         
         if (normalizedMap.has(norm)) {
           const existing = normalizedMap.get(norm)!
