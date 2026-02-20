@@ -43,9 +43,16 @@ function normalizeKeyword(keyword: string): string {
   
   kw = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   
-  kw = kw.replace(/es$/, '').replace(/s$/, '')
+  const words = kw.split(' ')
+  const normalizedWords = words.map(word => {
+    if (word.endsWith('ones')) return word.slice(0, -3)
+    if (word.endsWith('os') || word.endsWith('as')) return word.slice(0, -2)
+    if (word.endsWith('es')) return word.slice(0, -2)
+    if (word.endsWith('s')) return word.slice(0, -1)
+    return word
+  })
   
-  kw = kw.replace(/ces$/, 'z')
+  kw = normalizedWords.join(' ')
   
   kw = kw.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ')
   
