@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 const MODEL = 'gemini-2.5-flash-lite'
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
@@ -189,6 +192,7 @@ Devuelve EXACTAMENTE este JSON:
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const { keywordIds, useExistingSilos } = await request.json()
     
@@ -200,7 +204,7 @@ export async function POST(request: NextRequest) {
     let keywords: { id: string; keyword: string }[] = []
     
     if (keywordIds && keywordIds.length > 0) {
-      const { data } = await supabaseClient
+      const { data } = await supabase
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .in('id', keywordIds)
@@ -208,7 +212,7 @@ export async function POST(request: NextRequest) {
       
       keywords = data || []
     } else {
-      const { data } = await supabaseClient
+      const { data } = await supabase
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .eq('status', 'pending')
@@ -224,13 +228,13 @@ export async function POST(request: NextRequest) {
     const existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = []
     
     if (useExistingSilos) {
-      const { data: silos } = await supabaseClient
+      const { data: silos } = await supabase
         .from('d_seo_admin_silos')
         .select('id, name')
 
       if (silos && silos.length > 0) {
         for (const silo of silos) {
-          const { data: cats } = await supabaseClient
+          const { data: cats } = await supabase
             .from('d_seo_admin_categories')
             .select('id, name')
             .eq('silo_id', silo.id)
@@ -238,7 +242,7 @@ export async function POST(request: NextRequest) {
           const categories = []
           if (cats && cats.length > 0) {
             for (const cat of cats) {
-              const { data: pages } = await supabaseClient
+              const { data: pages } = await supabase
                 .from('d_seo_admin_pages')
                 .select('main_keyword')
                 .eq('category_id', cat.id)

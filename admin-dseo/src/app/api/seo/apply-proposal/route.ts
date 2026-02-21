@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 function slugify(text: string): string {
   return (text || '')
@@ -12,7 +15,7 @@ function slugify(text: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = supabaseClient
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
   
   try {
     const { 

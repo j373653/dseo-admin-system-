@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 const TOPICS_FROM_SITEMAP = [
   'desarrollo web',
@@ -97,13 +100,14 @@ function calculateTopicMatch(keyword: string): { match: boolean; reason: string;
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const { keywordIds, keywordTexts } = await request.json()
     
     let keywords: { id: string; keyword: string }[] = []
     
     if (keywordIds && keywordIds.length > 0) {
-      const { data } = await supabaseClient
+      const { data } = await supabase
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .in('id', keywordIds)
@@ -113,7 +117,7 @@ export async function POST(request: NextRequest) {
     } else if (keywordTexts && keywordTexts.length > 0) {
       keywords = keywordTexts.map((kw: string) => ({ id: '', keyword: kw }))
     } else {
-      const { data } = await supabaseClient
+      const { data } = await supabase
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .eq('status', 'pending')

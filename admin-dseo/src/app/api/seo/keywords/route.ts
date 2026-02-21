@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export async function GET(request: NextRequest) {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const limit = parseInt(searchParams.get('limit') || '500')
 
-    let query = supabaseClient
+    let query = supabase
       .from('d_seo_admin_raw_keywords')
       .select('id, keyword, search_volume, difficulty, status, intent, cluster_id, created_at')
       .order('created_at', { ascending: false })
@@ -27,16 +31,16 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    const { count } = await supabaseClient
+    const { count } = await supabase
       .from('d_seo_admin_raw_keywords')
       .select('*', { count: 'exact', head: true })
 
     return NextResponse.json({
       keywords: data || [],
       total: count || 0,
-      pending: (await supabaseClient.from('d_seo_admin_raw_keywords').select('*', { count: 'exact', head: true }).eq('status', 'pending')).count || 0,
-      clustered: (await supabaseClient.from('d_seo_admin_raw_keywords').select('*', { count: 'exact', head: true }).eq('status', 'clustered')).count || 0,
-      discarded: (await supabaseClient.from('d_seo_admin_raw_keywords').select('*', { count: 'exact', head: true }).eq('status', 'discarded')).count || 0
+      pending: (await supabase.from('d_seo_admin_raw_keywords').select('*', { count: 'exact', head: true }).eq('status', 'pending')).count || 0,
+      clustered: (await supabase.from('d_seo_admin_raw_keywords').select('*', { count: 'exact', head: true }).eq('status', 'clustered')).count || 0,
+      discarded: (await supabase.from('d_seo_admin_raw_keywords').select('*', { count: 'exact', head: true }).eq('status', 'discarded')).count || 0
     })
 
   } catch (error: any) {
@@ -45,6 +49,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const { keywordIds, status, discarded_reason } = await request.json()
 
@@ -69,7 +74,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('d_seo_admin_raw_keywords')
       .update(updateData)
       .in('id', keywordIds)
