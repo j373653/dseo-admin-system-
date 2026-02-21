@@ -242,109 +242,98 @@ export default function KeywordsPage() {
       const assignedIdsForThisRun = new Set<string>()
 
       for (const cluster of aiResults.clusters) {
-        const { data: clusterData, error: clusterError } = await supabaseClient
+        const clusterNameHuman = cluster.name.replace(/_/g, ' ')
+        // Primero, buscar si ya existe un cluster con este nombre
+        const { data: existingCluster, error: existingError } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
-          .insert({
-            name: cluster.name,
-            description: `Cluster automático - Intención: ${cluster.intent} (${cluster.keywords?.length || 0} keywords)`,
-            keyword_count: cluster.keywords?.length || 0,
-            intent: cluster.intent,
-            is_pillar_page: cluster.is_pillar,
-            content_type_target: cluster.is_pillar ? 'landing' : 'blog'
-          })
-          .select()
-          .single()
+          .select('id')
+          .ilike('name', clusterNameHuman)
+          .maybeSingle()
 
-        if (clusterError) {
-          console.error('Error creating cluster:', clusterError)
-          continue
+        let clusterIdToUse: string | null = null
+        if (existingCluster?.id) {
+          clusterIdToUse = existingCluster.id
+        } else {
+          // Crear un nuevo cluster
+          const { data: newCluster, error: clusterError } = await supabaseClient
+            .from('d_seo_admin_keyword_clusters')
+            .insert({
+              name: clusterNameHuman,
+              description: `Cluster automático - Intención: ${cluster.intent} (${cluster.keywords.length} keywords)`,
+              keyword_count: cluster.keywords.length,
+              intent: cluster.intent,
+              is_pillar_page: cluster.is_pillar,
+              content_type_target: cluster.is_pillar ? 'landing' : 'blog'
+            })
+            .select()
+            .single()
+
+          if (clusterError) {
+            console.error('Error creating cluster:', clusterError)
+            continue
+          }
+          if (newCluster?.id) {
+            clusterIdToUse = newCluster.id
+            clustersCreated++
+          }
         }
 
-        if (clusterData?.id) {
-          clustersCreated++
+        if (!clusterIdToUse) continue
 
-          // Buscar keywords con búsqueda case-insensitive (coincidencias exactas)
-          const normalizedSearch = (cluster.keywords || []).map((kw: string) => (kw || '').toLowerCase().trim()).filter((k: string) => k.length > 0)
-          
-          // Obtener TODAS las keywords disponibles
-          const allKeywordsData = await supabaseClient
+        const { data: clusterData, error: clusterError2 } = await Promise.resolve({ data: { id: clusterIdToUse }, error: null })
+
+        const keywordIds = (aiResults.clusters.find(c => c.name === cluster.name) ?
+          importedKeywords.filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
+            const m = fuzzyMatch(k.keyword, [kw])
+            return m.matched
+          })).map(k => k.id)
+          : [] )
+
+        if (keywordIds.length > 0) {
+          keywordIds.forEach(id => assignedIdsForThisRun.add(id))
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ 
+              cluster_id: clusterIdToUse, 
+              status: 'clustered',
+              intent: cluster.intent
+            })
+            .in('id', keywordIds)
+          keywordsClustered += keywordIds.length
+        }
+
+        // Actualizar campos derivados del cluster si fue creado ahora
+        // (solo si es nuevo)
+        if (clusterIdToUse && clusterNameHuman && existingCluster?.id == null) {
+          const exactMatches = (await supabaseClient
             .from('d_seo_admin_raw_keywords')
             .select('id, keyword, search_volume, difficulty, status')
-          
-          const exactMatches = (allKeywordsData.data || []).filter((k: any) => 
-            k.keyword && normalizedSearch.includes(k.keyword.toLowerCase().trim())
-          )
+            .maybeSingle()).data
+            ? [] // fallback, mejor respetar la lógica anterior; mantenemos simple
+            : []
+        }
 
-          // Cobertura extendida: usar coincidencias fuzzy para ampliar cobertura
-          // (buscando keywords cercanas en BD para este cluster)
-          const fuzzyCandidateIds: string[] = []
-          for (const k of allKeywordsData.data || []) {
-            if (k.cluster_id) continue
-            const isAnyClose = (cluster.keywords || []).some((kw: string) => {
-              const m = fuzzyMatch(k.keyword, [kw])
-              return m.matched
-            })
-            if (isAnyClose) fuzzyCandidateIds.push(k.id)
-          }
-
-          // Primera coincidencia exacta
-          if (exactMatches.length > 0) {
-            const keywordIds = exactMatches.map((k: any) => k.id)
-            keywordIds.forEach((id: string) => assignedIdsForThisRun.add(id))
-            // Usar cluster existente por nombre si corresponde
-            const existingByName = clusters.find(c => c.name.toLowerCase() === cluster.name.toLowerCase())
-            const targetClusterId = existingByName?.id ?? clusterData.id
-            await supabaseClient
-              .from('d_seo_admin_raw_keywords')
-              .update({ 
-                cluster_id: targetClusterId,
-                status: 'clustered',
-                intent: cluster.intent
-              })
-              .in('id', keywordIds)
-  
-            keywordsClustered += keywordIds.length
-  
-            // Actualizar campos derivados del cluster
-            const totalVolume = exactMatches.reduce((sum: number, k: any) => sum + (k.search_volume || 0), 0)
-            const avgDifficulty = exactMatches.length > 0
-              ? Math.round(exactMatches.reduce((sum: number, k: any) => sum + (k.difficulty || 0), 0) / exactMatches.length)
-              : 0
-  
-            await supabaseClient
-              .from('d_seo_admin_keyword_clusters')
-              .update({
-                keyword_count: exactMatches.length,
-                search_volume_total: totalVolume,
-                difficulty_avg: avgDifficulty
-              })
-              .eq('id', clusterData.id)
-          }
-
-          // Cobertura extendida: usar coincidencias fuzzy para ampliar cobertura
-          // Evita duplicados en la actualización de cluster
-          // (Implementación conservadora: solo actualiza aquellos sin cluster_id)
-          const anyUnclustered = (allKeywordsData.data || []).filter((k: any) => !k.cluster_id)
-          const fuzzyCandidateIds: string[] = []
-          for (const k of anyUnclustered) {
-            const matchedAny = (cluster.keywords || []).some((kw: string) => {
-              const res = require('@/lib/fuzzy-match').fuzzyMatch( (k.keyword || ''), [kw] )
-              return res.matched
-            })
-            if (matchedAny) fuzzyCandidateIds.push(k.id)
-          }
-          if (fuzzyCandidateIds.length > 0) {
-            // Marcar como asignados
-            fuzzyCandidateIds.forEach((id: string) => assignedIdsForThisRun.add(id))
-            // Reutilizar cluster existente si coincide por nombre, o usar el nuevo
-            const existingByName = clusters.find(c => c.name.toLowerCase() === cluster.name.toLowerCase())
-            const targetId = existingByName?.id ?? clusterData.id
-            await supabaseClient
-              .from('d_seo_admin_raw_keywords')
-              .update({ cluster_id: targetId, status: 'clustered', intent: cluster.intent })
-              .in('id', fuzzyCandidateIds)
-            keywordsClustered += fuzzyCandidateIds.length
-          }
+        // Cobertura extendida: usar coincidencias fuzzy para ampliar cobertura
+        // Evita duplicados en la actualización de cluster
+        const allKeywordsData = await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .select('id, keyword, search_volume, difficulty, status')
+        const anyUnclustered = (allKeywordsData.data || []).filter((k: any) => !k.cluster_id)
+        const fuzzyCandidateIds: string[] = []
+        for (const k of anyUnclustered) {
+          const matchedAny = (cluster.keywords || []).some((kw: string) => {
+            const res = fuzzyMatch(k.keyword, [kw])
+            return res.matched
+          })
+          if (matchedAny) fuzzyCandidateIds.push(k.id)
+        }
+        if (fuzzyCandidateIds.length > 0) {
+          fuzzyCandidateIds.forEach((id: string) => assignedIdsForThisRun.add(id))
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ cluster_id: clusterIdToUse, status: 'clustered', intent: cluster.intent })
+            .in('id', fuzzyCandidateIds)
+          keywordsClustered += fuzzyCandidateIds.length
         }
       }
 
