@@ -241,9 +241,20 @@ export default function KeywordsPage() {
       // Track IDs of keywords that are actually clustered in this run
       const assignedIdsForThisRun = new Set<string>()
 
-      for (const cluster of aiResults.clusters) {
+      // Deduplicate clusters by normalized name before applying
+      const normalizeClusterName = (nm: string) => (nm || '').replace(/_/g, ' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+      const uniqueClusters: any[] = []
+      const seenNames = new Set<string>()
+      for (const cl of aiResults.clusters || []) {
+        const key = normalizeClusterName(cl.name)
+        if (!seenNames.has(key)) {
+          seenNames.add(key)
+          uniqueClusters.push(cl)
+        }
+      }
+      for (const cluster of uniqueClusters) {
         const humanName = cluster.name.replace(/_/g, ' ')
-        // Primero buscar si existe un cluster con este nombre
+        // Primero buscar si existe un cluster con este nombre (manejo diacríticos)
         const { data: existingCluster, error: existingError } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
           .select('id')
@@ -251,9 +262,30 @@ export default function KeywordsPage() {
           .maybeSingle()
 
         let clusterIdToUse: string | null = null
+        let existingClusterNoDiag: any = null
         if (existingCluster?.id) {
           clusterIdToUse = existingCluster.id
         } else {
+          // Intentar coincidencia sin diacríticos
+          const humanNameNoDiag = humanName
+            .normalize('NFD')
+            .replace(/[\\u0300-\\u036f]/g, '')
+            .replace(/_/g, ' ')
+            .toLowerCase()
+          if (humanNameNoDiag) {
+            const { data: existingNoDiag, error: existingNoDiagError } = await supabaseClient
+              .from('d_seo_admin_keyword_clusters')
+              .select('id')
+              .ilike('name', humanNameNoDiag)
+              .maybeSingle()
+            existingClusterNoDiag = existingNoDiag
+            if (existingClusterNoDiag?.id) {
+              clusterIdToUse = existingClusterNoDiag.id
+            }
+          }
+        }
+
+        if (!clusterIdToUse) {
           // Crear un nuevo cluster
           const { data: newCluster, error: clusterError } = await supabaseClient
             .from('d_seo_admin_keyword_clusters')
@@ -282,7 +314,7 @@ export default function KeywordsPage() {
 
         const { data: clusterData, error: clusterError2 } = await Promise.resolve({ data: { id: clusterIdToUse }, error: null })
 
-        const keywordIds = (aiResults.clusters.find(c => c.name === cluster.name) ?
+        const keywordIds = (uniqueClusters.find((c: any) => c.name === cluster.name) ?
           importedKeywords.filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
             const m = fuzzyMatch(k.keyword, [kw])
             return m.matched
