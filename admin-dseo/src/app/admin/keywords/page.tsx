@@ -190,6 +190,37 @@ export default function KeywordsPage() {
     }
   }
 
+  const desclusterizeAll = async () => {
+    const clusteredCount = keywords.filter(k => k.status === 'clustered').length
+    if (clusteredCount === 0) {
+      alert('No hay keywords clusterizadas para desclusterizar')
+      return
+    }
+    if (!confirm(`¿Desclusterizar todas las ${clusteredCount} keywords? Las descartadas permanecerán como tales.`)) return
+
+    setActionLoading(true)
+    try {
+      const { error } = await supabaseClient
+        .from('d_seo_admin_raw_keywords')
+        .update({ 
+          status: 'pending', 
+          cluster_id: null,
+          intent: null
+        })
+        .eq('status', 'clustered')
+
+      if (error) throw error
+
+      await fetchData()
+      alert('Todas las keywords clusterizadas ahora están pendientes (las descartadas permanecen descartadas)')
+    } catch (err) {
+      console.error('Error:', err)
+      alert('Error al desclusterizar')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const analyzeWithAI = async () => {
     if (selectedIds.length === 0) {
       alert('Selecciona keywords para analizar')
@@ -450,7 +481,7 @@ export default function KeywordsPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Keywords</h2>
           <p className="text-gray-600">
-            {totalCount} keywords | {(keywords || []).filter(k => !k.cluster_id).length} sin clasificar
+            {totalCount} keywords | {(keywords || []).filter(k => k.status === 'pending').length} pendientes | {(keywords || []).filter(k => k.status === 'clustered').length} clusterizadas | {(keywords || []).filter(k => k.status === 'discarded').length} descartadas
           </p>
         </div>
         <div className="flex space-x-3">
@@ -467,11 +498,23 @@ export default function KeywordsPage() {
               Importar CSV
             </button>
           </Link>
-          <Link href="/admin/keywords/clusters">
-            <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-              Ver Clusters
+          <Link href="/admin/keywords/proposal">
+            <button className="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:from-green-600 hover:to-teal-600">
+              Nueva Propuesta SILO
             </button>
           </Link>
+          <Link href="/admin/keywords/silo">
+            <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+              Ver Silos
+            </button>
+          </Link>
+          <button
+            onClick={desclusterizeAll}
+            disabled={actionLoading}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+          >
+            Desclusterizar Todo
+          </button>
         </div>
       </div>
 
