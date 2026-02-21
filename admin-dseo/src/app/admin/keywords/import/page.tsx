@@ -332,6 +332,10 @@ export default function ImportKeywordsPage() {
   }
 
   const skipAnalysis = () => {
+    router.push('/admin/keywords')
+  }
+
+  const goToClusters = () => {
     router.push('/admin/keywords/clusters')
   }
 
@@ -374,7 +378,7 @@ export default function ImportKeywordsPage() {
           <p className="text-purple-700 mb-4">
             ¿Quieres analizar estas keywords automáticamente con Gemini para crear clusters?
           </p>
-          <div className="flex space-x-4">
+          <div className="flex flex-wrap gap-4">
             <button
               onClick={runAIAnalysis}
               className="flex items-center space-x-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
@@ -386,7 +390,13 @@ export default function ImportKeywordsPage() {
               onClick={skipAnalysis}
               className="px-6 py-3 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
             >
-              No, ir a Clusters manualmente
+              Ir a Gestión de Keywords
+            </button>
+            <button
+              onClick={goToClusters}
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              Ir a Clusters
             </button>
           </div>
         </div>
