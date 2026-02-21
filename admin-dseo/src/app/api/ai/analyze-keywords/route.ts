@@ -20,6 +20,15 @@ interface SemanticAnalysisResult {
 const MODEL = 'gemini-2.5-flash-lite'
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 
+// Simple slugify helper for URL targets
+function slugify(text: string): string {
+  return (text || '')
+    .toString()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 async function analyzeBatchWithGemini(
   keywords: string[], 
   apiKey: string,
@@ -216,12 +225,34 @@ export async function POST(request: NextRequest) {
     console.log(`Batches: ${totalBatches - failedBatches.length}/${totalBatches} successful`)
     console.log(`=====================================\n`)
 
+    // Construir estructura SILO a partir de clusters si aplica
+    const silosFromClusters: any[] = []
+    if (allClusters && allClusters.length > 0) {
+      const siloName = 'Cluster IA'
+      const categoryMap = new Map<string, { name: string; pages: any[] }>()
+      for (const cl of allClusters) {
+        const catName = cl.name || 'Unnamed'
+        const entry = categoryMap.get(catName) || { name: catName, pages: [] }
+        entry.pages.push({
+          mainKeyword: cl.keywords[0] || '',
+          secondaryKeywords: cl.keywords.slice(1),
+          intent: cl.intent,
+          urlTarget: `/servicios/seo/${slugify(cl.name)}`,
+          isPillar: !!cl.is_pillar
+        })
+        categoryMap.set(catName, entry)
+      }
+      const categories = Array.from(categoryMap.values())
+      silosFromClusters.push({ name: siloName, categories })
+    }
+
     return NextResponse.json({
       success: true,
       duplicates: allDuplicates.map(dup => ({ keywords: dup })),
       clusters: allClusters,
       canibalizations: allCanibalizations.map(can => ({ keywords: can })),
       intentions: allIntentions,
+      silos: silosFromClusters,
       totalAnalyzed: keywords.length,
       totalRequested: keywords.length,
       batchesProcessed: totalBatches - failedBatches.length,

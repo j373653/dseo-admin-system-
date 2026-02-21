@@ -30,6 +30,13 @@ export interface AIAnalysisResult {
   clusters: AICluster[]
   canibalizations: AICanibalization[]
   intentions: { [keyword: string]: string }
+  silos?: {
+    name: string
+    categories: {
+      name: string
+      pages: { mainKeyword: string; secondaryKeywords: string[]; intent: string; urlTarget: string; isPillar: boolean }[]
+    }[]
+  }[]
   totalAnalyzed: number
   totalRequested: number
   batchesProcessed?: number
@@ -89,12 +96,33 @@ export async function getAIClusterSuggestions(
     return { clusters: [], error: result.error }
   }
 
-  const clusters = result.clusters.map(cluster => ({
-    name: cluster.name,
-    keywords: cluster.keywords,
-    avgConfidence: 0.8,
-    contentType: cluster.is_pillar ? 'landing' : 'blog'
-  }))
+  let clusters = (result.clusters || []) as any[]
+
+  // Si no hay clusters pero existen silos, derivar clusters desde silos
+  if ((!clusters || clusters.length === 0) && (result as any).silos) {
+    const silos = (result as any).silos as any[]
+    const derived: { name: string; keywords: string[]; avgConfidence: number; contentType: string }[] = []
+    for (const silo of silos) {
+      for (const cat of (silo.categories || [])) {
+        for (const page of (cat.pages || [])) {
+          derived.push({
+            name: cat.name,
+            keywords: [page.mainKeyword, ...(page.secondaryKeywords || [])],
+            avgConfidence: 0.8,
+            contentType: page.isPillar ? 'landing' : 'blog'
+          })
+        }
+      }
+    }
+    clusters = derived
+  } else {
+    clusters = (result.clusters || []).map(cluster => ({
+      name: cluster.name,
+      keywords: cluster.keywords,
+      avgConfidence: 0.8,
+      contentType: cluster.is_pillar ? 'landing' : 'blog'
+    }))
+  }
 
   return { clusters }
 }
