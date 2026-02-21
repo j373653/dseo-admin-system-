@@ -39,33 +39,15 @@ function getIntentBadgeColor(intent: string | null | undefined): string {
   return colors[intent || ''] || 'bg-gray-100 text-gray-800'
 }
 
-function normalizeKeyword(kw: string): string {
-  return kw
-    .toLowerCase()
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .split(' ')
-    .map(word => {
-      if (word.endsWith('ones')) return word.slice(0, -3)
-      if (word.endsWith('os') || word.endsWith('as')) return word.slice(0, -2)
-      if (word.endsWith('es') && word.length > 3) return word.slice(0, -2)
-      if (word.endsWith('s') && word.length > 2) return word.slice(0, -1)
-      return word
-    })
-    .join(' ')
-}
-
 export default function KeywordsPage() {
   const [keywords, setKeywords] = useState<Keyword[]>([])
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilters, setStatusFilters] = useState<string[]>(['pending', 'clustered', 'discarded'])
+  const [showStatusFilter, setShowStatusFilter] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [cleaning, setCleaning] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   
   const [analyzingAI, setAnalyzingAI] = useState(false)
@@ -105,106 +87,12 @@ export default function KeywordsPage() {
     fetchData()
   }, [])
 
-  const cleanDatabase = async () => {
-    if (!confirm('¿Limpiar la base de datos? Esto eliminará duplicados y keywords muy cortas.')) return
-
-    setCleaning(true)
-    try {
-      const { data: allKeywords, error } = await supabaseClient
-        .from('d_seo_admin_raw_keywords')
-        .select('id, keyword, search_volume, status')
-
-      if (error) throw error
-      if (!allKeywords || allKeywords.length === 0) {
-        alert('No hay keywords para limpiar')
-        setCleaning(false)
-        return
-      }
-
-      console.log('=== ANALISIS DE KEYWORDS ===')
-      console.log('Total en BBDD:', allKeywords.length)
-      
-      const testKeywords = ['diseños web', 'diseño web', 'disenos web']
-      testKeywords.forEach(kw => {
-        console.log(`"${kw}" -> normalize -> "${normalizeKeyword(kw)}"`)
-      })
-
-      const normalizedMap: any = new Map()
-
-      allKeywords.forEach((k: any) => {
-        const kw = String(k.keyword || '').trim()
-        if (kw.length < 3) return
-        
-        const norm = normalizeKeyword(kw)
-        
-        if (kw.toLowerCase().includes('dise')) {
-          console.log(`Keyword: "${kw}" -> Normalizado: "${norm}"`)
-        }
-        
-        if (normalizedMap.has(norm)) {
-          const existing = normalizedMap.get(norm)!
-          existing.volume += Number(k.search_volume) || 0
-          existing.ids.push(k.id)
-          existing.originals = [...(existing.originals || []), k.keyword]
-        } else {
-          normalizedMap.set(norm, { 
-            originalId: k.id, 
-            volume: Number(k.search_volume) || 0, 
-            ids: [k.id],
-            originals: [k.keyword]
-          })
-        }
-      })
-
-      const duplicates = Array.from(normalizedMap.entries() as [string, any][]).filter(([k, d]) => d.ids.length > 1)
-      console.log('=== DUPLICADOS ENCONTRADOS ===')
-      console.log('Total keywords procesadas:', allKeywords.length)
-      console.log('Grupos de duplicados:', duplicates.length)
-      duplicates.forEach(([norm, data]) => {
-        console.log(`"${norm}":`, data.originals, '→', data.ids.length, 'keywords')
-      })
-
-      let duplicatesRemoved = 0
-      const toDiscard: string[] = []
-      const toUpdate: { id: string; volume: number }[] = []
-      
-      for (const [norm, data] of normalizedMap) {
-        if (data.ids.length > 1) {
-          toUpdate.push({ id: data.originalId, volume: data.volume })
-          toDiscard.push(...data.ids.slice(1))
-          duplicatesRemoved += data.ids.length - 1
-        }
-      }
-
-      console.log('A descartar:', toDiscard)
-      console.log('A actualizar:', toUpdate)
-
-      if (toDiscard.length > 0) {
-        const batchSize = 100
-        for (let i = 0; i < toDiscard.length; i += batchSize) {
-          const batch = toDiscard.slice(i, i + batchSize)
-          await supabaseClient
-            .from('d_seo_admin_raw_keywords')
-            .update({ status: 'discarded' })
-            .in('id', batch)
-        }
-      }
-
-      for (const update of toUpdate) {
-        await supabaseClient
-          .from('d_seo_admin_raw_keywords')
-          .update({ search_volume: update.volume })
-          .eq('id', update.id)
-      }
-
-      await fetchData()
-      alert(`Limpieza completada:\n• ${duplicatesRemoved} duplicados eliminados`)
-    } catch (err) {
-      console.error('Error:', err)
-      alert('Error durante la limpieza')
-    } finally {
-      setCleaning(false)
-    }
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilters(prev => 
+      prev.includes(status) 
+        ? prev.filter(s => s !== status)
+        : [...prev, status]
+    )
   }
 
   const toggleSelect = (id: string) => {
@@ -264,6 +152,31 @@ export default function KeywordsPage() {
     }
   }
 
+  const revertToPending = async () => {
+    if (selectedIds.length === 0) return
+    if (!confirm(`¿Revertir ${selectedIds.length} keywords a pendientes?`)) return
+
+    setActionLoading(true)
+    try {
+      await supabaseClient
+        .from('d_seo_admin_raw_keywords')
+        .update({ 
+          status: 'pending', 
+          cluster_id: null,
+          intent: null
+        })
+        .in('id', selectedIds)
+
+      setSelectedIds([])
+      await fetchData()
+      alert('Keywords revertidas a pendientes')
+    } catch (err) {
+      console.error('Error:', err)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const analyzeWithAI = async () => {
     if (selectedIds.length === 0) {
       alert('Selecciona keywords para analizar')
@@ -314,6 +227,7 @@ export default function KeywordsPage() {
     try {
       let clustersCreated = 0
       let keywordsClustered = 0
+      const createdClusterIds: string[] = []
 
       for (const cluster of aiResults.clusters) {
         const { data: clusterData, error: clusterError } = await supabaseClient
@@ -332,42 +246,80 @@ export default function KeywordsPage() {
           continue
         }
 
-        clustersCreated++
+        if (clusterData?.id) {
+          createdClusterIds.push(clusterData.id)
+          clustersCreated++
 
-        const clusterKeywords = cluster.keywords
-        const { data: keywordData } = await supabaseClient
-          .from('d_seo_admin_raw_keywords')
-          .select('id')
-          .in('keyword', clusterKeywords)
-
-        if (keywordData && keywordData.length > 0) {
-          const keywordIds = keywordData.map(k => k.id)
+          // Buscar keywords con búsqueda case-insensitive
+          const normalizedSearch = cluster.keywords.map((kw: string) => kw.toLowerCase().trim())
           
-          await supabaseClient
+          // Obtener keywords que coincidan (busqueda case-insensitive)
+          const allKeywordsData = await supabaseClient
             .from('d_seo_admin_raw_keywords')
-            .update({ 
-              cluster_id: clusterData.id,
-              status: 'clustered',
-              intent: cluster.intent
-            })
-            .in('id', keywordIds)
+            .select('id, keyword, search_volume, difficulty')
+            .in('status', ['pending', 'clustered'])
 
-          keywordsClustered += keywordIds.length
+          const matchingKeywords = (allKeywordsData.data || []).filter((k: any) => 
+            normalizedSearch.includes(k.keyword.toLowerCase().trim())
+          )
+
+          if (matchingKeywords.length > 0) {
+            const keywordIds = matchingKeywords.map((k: any) => k.id)
+            
+            await supabaseClient
+              .from('d_seo_admin_raw_keywords')
+              .update({ 
+                cluster_id: clusterData.id,
+                status: 'clustered',
+                intent: cluster.intent
+              })
+              .in('id', keywordIds)
+
+            keywordsClustered += keywordIds.length
+
+            // Actualizar campos derivados del cluster
+            const totalVolume = matchingKeywords.reduce((sum: number, k: any) => sum + (k.search_volume || 0), 0)
+            const avgDifficulty = matchingKeywords.length > 0
+              ? Math.round(matchingKeywords.reduce((sum: number, k: any) => sum + (k.difficulty || 0), 0) / matchingKeywords.length)
+              : 0
+
+            await supabaseClient
+              .from('d_seo_admin_keyword_clusters')
+              .update({
+                keyword_count: matchingKeywords.length,
+                search_volume_total: totalVolume,
+                difficulty_avg: avgDifficulty
+              })
+              .eq('id', clusterData.id)
+          }
         }
       }
 
+      // Procesar duplicados
       let duplicatesRemoved = 0
       for (const dupGroup of aiResults.duplicates) {
         const keywordsToKeep = dupGroup.keywords.slice(0, 1)
         const keywordsToDiscard = dupGroup.keywords.slice(1)
 
         if (keywordsToDiscard.length > 0) {
-          await supabaseClient
-            .from('d_seo_admin_raw_keywords')
-            .update({ status: 'discarded', cluster_id: null })
-            .in('keyword', keywordsToDiscard)
+          const normalizedDiscard = keywordsToDiscard.map((kw: string) => kw.toLowerCase().trim())
           
-          duplicatesRemoved += keywordsToDiscard.length
+          const allKeywordsData = await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .select('id')
+
+          const matchingIds = (allKeywordsData.data || [])
+            .filter((k: any) => normalizedDiscard.includes(k.keyword.toLowerCase().trim()))
+            .map((k: any) => k.id)
+
+          if (matchingIds.length > 0) {
+            await supabaseClient
+              .from('d_seo_admin_raw_keywords')
+              .update({ status: 'discarded', cluster_id: null })
+              .in('id', matchingIds)
+            
+            duplicatesRemoved += matchingIds.length
+          }
         }
       }
 
@@ -392,7 +344,7 @@ export default function KeywordsPage() {
 
   const filteredKeywords = keywords.filter(kw => {
     const matchesSearch = String(kw.keyword || '').toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || kw.status === statusFilter
+    const matchesStatus = statusFilters.length === 0 || statusFilters.includes(kw.status)
     return matchesSearch && matchesStatus
   })
 
@@ -423,14 +375,6 @@ export default function KeywordsPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Actualizar</span>
-          </button>
-          <button
-            onClick={cleanDatabase}
-            disabled={cleaning}
-            className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
-          >
-            {cleaning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span>Limpiar BBDD</span>
           </button>
           <Link href="/admin/keywords/import">
             <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
@@ -464,6 +408,14 @@ export default function KeywordsPage() {
               <span>Analizar con IA</span>
             </button>
             <button
+              onClick={revertToPending}
+              disabled={actionLoading}
+              className="flex items-center space-x-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Revertir a pendiente</span>
+            </button>
+            <button
               onClick={removeFromCluster}
               disabled={actionLoading}
               className="flex items-center space-x-1 px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
@@ -491,16 +443,40 @@ export default function KeywordsPage() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="all">Todos los estados</option>
-          <option value="pending">Pendientes</option>
-          <option value="clustered">Clusterizadas</option>
-          <option value="discarded">Descartadas</option>
-        </select>
+        <div className="relative">
+          <button
+            onClick={() => setShowStatusFilter(!showStatusFilter)}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
+          >
+            <span>Estados</span>
+            <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+              {statusFilters.length}
+            </span>
+          </button>
+          {showStatusFilter && (
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-3">
+              <div className="space-y-2">
+                {[
+                  { value: 'pending', label: 'Pendientes', color: 'bg-yellow-100 text-yellow-800' },
+                  { value: 'clustered', label: 'Clusterizadas', color: 'bg-green-100 text-green-800' },
+                  { value: 'discarded', label: 'Descartadas', color: 'bg-red-100 text-red-800' }
+                ].map((option) => (
+                  <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={statusFilters.includes(option.value)}
+                      onChange={() => toggleStatusFilter(option.value)}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className={`px-2 py-0.5 text-xs rounded ${option.color}`}>
+                      {option.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {filteredKeywords.length > 0 ? (
