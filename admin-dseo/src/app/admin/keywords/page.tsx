@@ -233,10 +233,11 @@ export default function KeywordsPage() {
           .from('d_seo_admin_keyword_clusters')
           .insert({
             name: cluster.name,
+            description: `Cluster automático - Intención: ${cluster.intent} (${cluster.keywords?.length || 0} keywords)`,
+            keyword_count: cluster.keywords?.length || 0,
             intent: cluster.intent,
             is_pillar: cluster.is_pillar,
-            is_pillar_page: cluster.is_pillar,
-            content_type_target: cluster.is_pillar ? 'landing' : 'blog'
+            content_type: cluster.is_pillar ? 'landing' : 'blog'
           })
           .select()
           .single()
