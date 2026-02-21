@@ -20,48 +20,40 @@ type Silo = {
 export default function SilosPage() {
   const [silos, setSilos] = useState<Silo[] | null>(null)
   const [loading, setLoading] = useState(true)
-  const [nameInput, setNameInput] = useState('')
-  const [descInput, setDescInput] = useState('')
-  const [selectedSiloId, setSelectedSiloId] = useState<string | null>(null)
-  const [catNameInput, setCatNameInput] = useState('')
-  const [catDescInput, setCatDescInput] = useState('')
-  const [pageMainInput, setPageMainInput] = useState('')
-  const [pageUrlInput, setPageUrlInput] = useState('')
-  const [pageIsPillar, setPageIsPillar] = useState(false)
-  const [pageContentType, setPageContentType] = useState('blog')
 
-  useEffect(() => {
-    const fetchSilos = async () => {
-      try {
-        const res = await fetch('/api/seo/silos')
-        if (!res.ok) throw new Error('Error fetching silos')
-        const data = await res.json()
-        const raw = data?.silos || []
-        const mapped: Silo[] = raw.map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          description: s.description,
-          categories: (s.categories || []).map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            description: c.description,
-            pages: (c.pages || []).map((p: any) => ({
-              id: p.id,
-              main_keyword: p.main_keyword,
-              url_target: p.url_target,
-              is_pillar: p.is_pillar,
-              content_type_target: p.content_type_target
-            }))
+  const fetchSilos = async () => {
+    try {
+      const res = await fetch('/api/seo/silos')
+      if (!res.ok) throw new Error('Error fetching silos')
+      const data = await res.json()
+      const raw = data?.silos || []
+      const mapped: Silo[] = raw.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        categories: (s.categories || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          pages: (c.pages || []).map((p: any) => ({
+            id: p.id,
+            main_keyword: p.main_keyword,
+            url_target: p.url_target,
+            is_pillar: p.is_pillar,
+            content_type_target: p.content_type_target
           }))
         }))
-        setSilos(mapped)
-      } catch (err) {
-        console.error(err)
-        setSilos(null)
-      } finally {
-        setLoading(false)
-      }
+      }))
+      setSilos(mapped)
+    } catch (err) {
+      console.error(err)
+      setSilos(null)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchSilos()
   }, [])
 
