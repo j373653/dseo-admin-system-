@@ -42,6 +42,8 @@ function getIntentBadgeColor(intent: string | null | undefined): string {
 
 export default function KeywordsPage() {
   const [keywords, setKeywords] = useState<Keyword[]>([])
+  // Backward-compat alias to avoid TS issues when code references `importedKeywords`
+  const importedKeywords = keywords
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -315,7 +317,7 @@ export default function KeywordsPage() {
         const { data: clusterData, error: clusterError2 } = await Promise.resolve({ data: { id: clusterIdToUse }, error: null })
 
         const keywordIds = (uniqueClusters.find((c: any) => c.name === cluster.name) ?
-          importedKeywords.filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
+          keywords.filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
             const m = fuzzyMatch(k.keyword, [kw])
             return m.matched
           })).map(k => k.id)
