@@ -21,7 +21,7 @@ export async function GET() {
       }
     }
     return NextResponse.json({ silos: result })
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Error fetching silos' }, { status: 500 })
   }
 }

@@ -20,6 +20,15 @@ type Silo = {
 export default function SilosPage() {
   const [silos, setSilos] = useState<Silo[] | null>(null)
   const [loading, setLoading] = useState(true)
+  const [nameInput, setNameInput] = useState('')
+  const [descInput, setDescInput] = useState('')
+  const [selectedSiloId, setSelectedSiloId] = useState<string | null>(null)
+  const [catNameInput, setCatNameInput] = useState('')
+  const [catDescInput, setCatDescInput] = useState('')
+  const [pageMainInput, setPageMainInput] = useState('')
+  const [pageUrlInput, setPageUrlInput] = useState('')
+  const [pageIsPillar, setPageIsPillar] = useState(false)
+  const [pageContentType, setPageContentType] = useState('blog')
 
   const fetchSilos = async () => {
     try {
@@ -80,7 +89,8 @@ export default function SilosPage() {
     })
     if (resp.ok) {
       await fetchSilos()
-      setCatNameInput('').setCatDescInput('')
+      setCatNameInput('')
+      setCatDescInput('')
     }
   }
 
@@ -103,12 +113,24 @@ export default function SilosPage() {
   }
 
   if (loading) return <div>Cargando jerarquía SILO...</div>
-  if (!silos || silos.length === 0) return <div>No hay silos</div>
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-3">Silos</h2>
-      <Link href="/admin/keywords/import"><button className="px-3 py-1 bg-indigo-600 text-white rounded">Importar</button></Link>
+      <Link href="/admin/keywords/import"><button className="px-3 py-1 bg-indigo-600 text-white rounded mb-4">Importar Keywords</button></Link>
+      
+      <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+        <h3 className="font-semibold mb-2">Crear nuevo Silo</h3>
+        <div className="flex gap-2">
+          <input placeholder="Nombre del silo" value={nameInput} onChange={e => setNameInput(e.target.value)} className="border rounded px-3 py-2 flex-1" />
+          <input placeholder="Descripción (opcional)" value={descInput} onChange={e => setDescInput(e.target.value)} className="border rounded px-3 py-2 flex-1" />
+          <button onClick={createSilo} className="px-4 py-2 bg-indigo-600 text-white rounded">Crear Silo</button>
+        </div>
+      </div>
+
+      {!silos || silos.length === 0 ? (
+        <div className="text-gray-500">No hay silos creados. Crea uno arriba.</div>
+      ) : (
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {silos.map((s) => (
           <div key={s.id} className="border rounded-lg p-4">
@@ -149,6 +171,7 @@ export default function SilosPage() {
           </div>
         ))}
       </div>
+      )}
     </div>
   )
 }

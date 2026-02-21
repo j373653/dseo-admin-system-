@@ -149,7 +149,7 @@ JSON:`
     if (attempt <= MAX_RETRIES) {
       console.log(`Retrying batch (attempt ${attempt + 1})...`)
       await new Promise(resolve => setTimeout(resolve, 2000))
-      return analyzeBatchWithGemini(keywords, apiKey, attempt + 1)
+      return analyzeBatchWithGemini(keywords, apiKey, existingClusters, attempt + 1)
     }
     throw error
   }
