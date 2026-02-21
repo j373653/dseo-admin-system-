@@ -263,16 +263,43 @@ export default function ImportKeywordsPage() {
 
       const assignedIdsForThisRun = new Set<string>()
       for (const cluster of clusters) {
-        // Primer intento: reutilizar cluster existente por nombre si ya existe en DB
+        const clusterNameHuman = cluster.name.replace(/_/g, ' ')
+        // Primero, buscar si ya existe un cluster con este nombre
         const { data: existingCluster, error: existingError } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
-          .select('id, keyword_count')
-          .ilike('name', cluster.name.replace(/_/g, ' '))
+          .select('id')
+          .ilike('name', clusterNameHuman)
           .maybeSingle()
 
+        let targetClusterId: string | null = null
         if (existingCluster?.id) {
-          // Ya existe un cluster con este nombre, asignar keywords directamente a este cluster existente
-          const targetClusterId = existingCluster.id
+          targetClusterId = existingCluster.id
+        } else {
+          // Crear nuevo cluster
+          const { data: newCluster, error: clusterError } = await supabaseClient
+            .from('d_seo_admin_keyword_clusters')
+            .insert({
+              name: clusterNameHuman,
+              description: `Cluster automático - Intención: ${cluster.intent} (${cluster.keywords.length} keywords)`,
+              keyword_count: cluster.keywords.length,
+              intent: cluster.intent,
+              is_pillar_page: cluster.is_pillar,
+              content_type_target: cluster.is_pillar ? 'landing' : 'blog'
+            })
+            .select()
+            .single()
+
+          if (clusterError) {
+            console.error('Error creating cluster:', clusterError)
+            continue
+          }
+          if (newCluster?.id) {
+            targetClusterId = newCluster.id
+            createdCount++
+          }
+        }
+
+        if (targetClusterId) {
           const keywordIds = importedKeywords
             .filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
               const m = fuzzyMatch(k.keyword, [kw])
@@ -289,51 +316,6 @@ export default function ImportKeywordsPage() {
                 intent: cluster.intent
               })
               .in('id', keywordIds)
-            keywordsClustered += keywordIds.length
-          }
-          // No new cluster created
-          continue
-        }
-
-        // Crear un nuevo cluster (no existente)
-        const { data: newCluster, error: clusterError } = await supabaseClient
-          .from('d_seo_admin_keyword_clusters')
-          .insert({
-            name: cluster.name.replace(/_/g, ' '),
-            description: `Cluster automático - Intención: ${cluster.intent} (${cluster.keywords.length} keywords)`,
-            keyword_count: cluster.keywords.length,
-            intent: cluster.intent,
-            is_pillar_page: cluster.is_pillar,
-            content_type_target: cluster.is_pillar ? 'landing' : 'blog'
-          })
-          .select()
-          .single()
-
-        if (clusterError) {
-          console.error('Error creating cluster:', clusterError)
-          continue
-        }
-
-        if (newCluster) {
-          createdCount++
-          const keywordIds = importedKeywords
-            .filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
-              const m = fuzzyMatch(k.keyword, [kw])
-              return m.matched
-            }))
-            .map(k => k.id)
-          
-          if (keywordIds.length > 0) {
-            keywordIds.forEach(id => assignedIdsForThisRun.add(id))
-            await supabaseClient
-              .from('d_seo_admin_raw_keywords')
-              .update({ 
-                cluster_id: newCluster.id, 
-                status: 'clustered',
-                intent: cluster.intent
-              })
-              .in('id', keywordIds)
-            
             keywordsClustered += keywordIds.length
           }
         }
