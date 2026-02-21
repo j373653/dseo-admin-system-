@@ -242,12 +242,12 @@ export default function KeywordsPage() {
       const assignedIdsForThisRun = new Set<string>()
 
       for (const cluster of aiResults.clusters) {
-        const clusterNameHuman = cluster.name.replace(/_/g, ' ')
-        // Primero, buscar si ya existe un cluster con este nombre
+        const humanName = cluster.name.replace(/_/g, ' ')
+        // Primero buscar si existe un cluster con este nombre
         const { data: existingCluster, error: existingError } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
           .select('id')
-          .ilike('name', clusterNameHuman)
+          .ilike('name', humanName)
           .maybeSingle()
 
         let clusterIdToUse: string | null = null
@@ -258,7 +258,7 @@ export default function KeywordsPage() {
           const { data: newCluster, error: clusterError } = await supabaseClient
             .from('d_seo_admin_keyword_clusters')
             .insert({
-              name: clusterNameHuman,
+              name: humanName,
               description: `Cluster automático - Intención: ${cluster.intent} (${cluster.keywords.length} keywords)`,
               keyword_count: cluster.keywords.length,
               intent: cluster.intent,
@@ -304,13 +304,8 @@ export default function KeywordsPage() {
 
         // Actualizar campos derivados del cluster si fue creado ahora
         // (solo si es nuevo)
-        if (clusterIdToUse && clusterNameHuman && existingCluster?.id == null) {
-          const exactMatches = (await supabaseClient
-            .from('d_seo_admin_raw_keywords')
-            .select('id, keyword, search_volume, difficulty, status')
-            .maybeSingle()).data
-            ? [] // fallback, mejor respetar la lógica anterior; mantenemos simple
-            : []
+        if (clusterIdToUse && humanName && existingCluster?.id == null) {
+          // No-op actual para ahora; podría usarse para métricas si se desea
         }
 
         // Cobertura extendida: usar coincidencias fuzzy para ampliar cobertura
