@@ -93,10 +93,14 @@ export default function ImportKeywordsPage() {
         const allImportedIds = importedKeywords.map(k => k.id)
         const toPending = allImportedIds.filter(id => !assignedIdsForThisRun.has(id))
         if (toPending.length > 0) {
-          await supabaseClient
+          supabaseClient
             .from('d_seo_admin_raw_keywords')
             .update({ cluster_id: null, status: 'pending' })
             .in('id', toPending)
+            .then(() => {
+              // no-op; execution continues
+            })
+            .catch((err) => console.error('Error marking pending after import:', err))
         }
       } catch (err) {
         console.error('Error marking pending after import:', err)
