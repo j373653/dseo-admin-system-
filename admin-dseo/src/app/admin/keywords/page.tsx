@@ -63,8 +63,7 @@ export default function KeywordsPage() {
         supabaseClient
           .from('d_seo_admin_raw_keywords')
           .select('*')
-          .order('search_volume', { ascending: false })
-          .limit(500),
+          .order('search_volume', { ascending: false }),
         supabaseClient
           .from('d_seo_admin_keyword_clusters')
           .select('id, name'),
