@@ -334,8 +334,8 @@ export default function ClustersPage() {
             description: `Cluster generado por IA - Intención: ${cluster.intent} (${cluster.keywords.length} keywords)`,
             keyword_count: cluster.keywords.length,
             intent: cluster.intent,
-            is_pillar: cluster.is_pillar,
-            content_type: cluster.is_pillar ? 'landing' : 'blog'
+            is_pillar_page: cluster.is_pillar,
+            content_type_target: cluster.is_pillar ? 'landing' : 'blog'
           })
           .select()
           .single()
