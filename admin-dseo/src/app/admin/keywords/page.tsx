@@ -317,7 +317,7 @@ export default function KeywordsPage() {
         const { data: clusterData, error: clusterError2 } = await Promise.resolve({ data: { id: clusterIdToUse }, error: null })
 
         const keywordIds = (uniqueClusters.find((c: any) => c.name === cluster.name) ?
-          keywords.filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
+          keywords.filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw: string) => {
             const m = fuzzyMatch(k.keyword, [kw])
             return m.matched
           })).map(k => k.id)
