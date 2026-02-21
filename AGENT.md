@@ -32,3 +32,8 @@ Nota de Carpetas: El código está en admin-dseo/ y d-seo-web/, pero tu llave pa
 
 ---
 > *Este documento es tu 'ADN' de comportamiento. El conocimiento detallado vive en tu memoria de Supabase.*
+## Regla de Despliegue
+
+- **SIEMPRE** hacer commit y push a GitHub después de cualquier cambio
+- El usuario hace deploy desde Coolify, que se sincroniza con GitHub
+- No hacer cambios sin commit+push, el usuario no puede probarlos de otra forma
