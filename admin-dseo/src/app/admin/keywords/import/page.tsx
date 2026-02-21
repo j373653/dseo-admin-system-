@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { supabaseClient } from '@/lib/supabase'
 import { analyzeKeywordsWithAI, AICluster } from '@/lib/ai-analysis'
@@ -23,6 +23,7 @@ interface ImportedKeyword {
 
 export default function ImportKeywordsPage() {
   const router = useRouter()
+  const assignedIdsForThisRun = useRef<Set<string>>(new Set<string>())
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<CsvPreview | null>(null)
   const [loading, setLoading] = useState(false)
@@ -91,7 +92,7 @@ export default function ImportKeywordsPage() {
       // Mark pending keywords that were not assigned to any cluster
       try {
         const allImportedIds = importedKeywords.map(k => k.id)
-        const toPending = allImportedIds.filter(id => !assignedIdsForThisRun.has(id))
+        const toPending = allImportedIds.filter(id => !assignedIdsForThisRun.current.has(id))
         if (toPending.length > 0) {
           supabaseClient
             .from('d_seo_admin_raw_keywords')
@@ -265,7 +266,7 @@ export default function ImportKeywordsPage() {
       let createdCount = 0
       let keywordsClustered = 0
 
-      const assignedIdsForThisRun = new Set<string>()
+        // use outer assignedIdsForThisRun (useRef) to aggregate IDs assigned in this run
       for (const cluster of clusters) {
         const clusterNameHuman = cluster.name.replace(/_/g, ' ')
         // Primero, buscar si ya existe un cluster con este nombre
@@ -311,7 +312,7 @@ export default function ImportKeywordsPage() {
             }))
             .map(k => k.id)
           if (keywordIds.length > 0) {
-            keywordIds.forEach(id => assignedIdsForThisRun.add(id))
+          keywordIds.forEach(id => assignedIdsForThisRun.current.add(id))
             await supabaseClient
               .from('d_seo_admin_raw_keywords')
               .update({ 
