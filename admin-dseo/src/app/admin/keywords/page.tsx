@@ -42,7 +42,6 @@ function getIntentBadgeColor(intent: string | null | undefined): string {
 
 export default function KeywordsPage() {
   const [keywords, setKeywords] = useState<Keyword[]>([])
-  // Backward-compat alias to avoid TS issues when code references `importedKeywords`
   const importedKeywords = keywords
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +51,8 @@ export default function KeywordsPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [actionLoading, setActionLoading] = useState(false)
+
+  console.log('KeywordsPage loaded, statusFilters:', statusFilters)
   
   const [analyzingAI, setAnalyzingAI] = useState(false)
   const [aiResults, setAiResults] = useState<AIAnalysisResult | null>(null)
@@ -75,6 +76,14 @@ export default function KeywordsPage() {
           .from('d_seo_admin_raw_keywords')
           .select('id', { count: 'exact', head: true })
       ])
+
+      console.log('Keywords fetched:', keywordsRes.data?.length, 'Error:', keywordsRes.error)
+      console.log('Status counts:', {
+        pending: keywordsRes.data?.filter(k => k.status === 'pending').length,
+        clustered: keywordsRes.data?.filter(k => k.status === 'clustered').length,
+        discarded: keywordsRes.data?.filter(k => k.status === 'discarded').length,
+        null: keywordsRes.data?.filter(k => !k.status).length
+      })
 
       setKeywords(keywordsRes.data || [])
       setClusters(clustersRes.data || [])
