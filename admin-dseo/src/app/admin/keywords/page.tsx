@@ -223,24 +223,20 @@ export default function KeywordsPage() {
   const applyAIChanges = async () => {
     if (!aiResults) return
 
-    console.log('=== AI RESULTS ===', JSON.stringify(aiResults, null, 2))
-
     setApplyingChanges(true)
     try {
       let clustersCreated = 0
       let keywordsClustered = 0
-      const createdClusterIds: string[] = []
 
       for (const cluster of aiResults.clusters) {
-        console.log('Processing cluster:', cluster.name, 'keywords:', cluster.keywords)
-
         const { data: clusterData, error: clusterError } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
           .insert({
             name: cluster.name,
             intent: cluster.intent,
             is_pillar: cluster.is_pillar,
-            content_type: cluster.is_pillar ? 'landing' : 'blog'
+            is_pillar_page: cluster.is_pillar,
+            content_type_target: cluster.is_pillar ? 'landing' : 'blog'
           })
           .select()
           .single()
@@ -251,30 +247,19 @@ export default function KeywordsPage() {
         }
 
         if (clusterData?.id) {
-          createdClusterIds.push(clusterData.id)
           clustersCreated++
 
           // Buscar keywords con búsqueda case-insensitive
           const normalizedSearch = (cluster.keywords || []).map((kw: string) => (kw || '').toLowerCase().trim()).filter((k: string) => k.length > 0)
-          console.log('Searching for:', normalizedSearch)
           
-          // Obtener TODAS las keywords disponibles (sin filtro de status)
+          // Obtener TODAS las keywords disponibles
           const allKeywordsData = await supabaseClient
             .from('d_seo_admin_raw_keywords')
             .select('id, keyword, search_volume, difficulty, status')
 
-          console.log('Total keywords in DB:', allKeywordsData.data?.length)
-          
-          // Mostrar algunas keywords de ejemplo
-          if (allKeywordsData.data && allKeywordsData.data.length > 0) {
-            console.log('Sample keywords from DB:', allKeywordsData.data.slice(0, 5).map(k => k.keyword))
-          }
-
           const matchingKeywords = (allKeywordsData.data || []).filter((k: any) => 
             k.keyword && normalizedSearch.includes(k.keyword.toLowerCase().trim())
           )
-
-          console.log('Matching keywords found:', matchingKeywords.length, matchingKeywords.map((k: any) => k.keyword))
 
           if (matchingKeywords.length > 0) {
             const keywordIds = matchingKeywords.map((k: any) => k.id)
