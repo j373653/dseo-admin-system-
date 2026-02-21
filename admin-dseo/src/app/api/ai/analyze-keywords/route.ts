@@ -23,18 +23,24 @@ const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 async function analyzeBatchWithGemini(
   keywords: string[], 
   apiKey: string,
+  existingClusters: { name: string; keywords: string[] }[] = [],
   attempt: number = 1
 ): Promise<SemanticAnalysisResult> {
   const MAX_RETRIES = 2
   
   const keywordList = keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')
+  const existingClusterLines = (existingClusters && existingClusters.length > 0)
+    ? existingClusters.map(c => `- ${c.name}: ${c.keywords.join(', ')}`).join('\n')
+    : ''
+
+  const existingClusterBlock = existingClusterLines ? `EXISTING CLUSTERS:\n${existingClusterLines}\n` : ''
   
   const prompt = `Eres un experto en SEO. Analiza estas ${keywords.length} palabras clave y devuelve un análisis semántico completo.
 
 PALABRAS CLAVE:
 ${keywordList}
 
-Analiza y devuelve EXACTAMENTE este JSON:
+${existingClusterBlock}Analiza y devuelve EXACTAMENTE este JSON:
 
 {
   "duplicates": [
@@ -142,7 +148,7 @@ JSON:`
 
 export async function POST(request: NextRequest) {
   try {
-    const { keywords } = await request.json()
+    const { keywords, existingClusters } = await request.json()
     
     if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
       return NextResponse.json(
@@ -182,7 +188,7 @@ export async function POST(request: NextRequest) {
       console.log(`Processing ${batch.length} keywords`)
       
       try {
-        const batchResults = await analyzeBatchWithGemini(batch, apiKey)
+        const batchResults = await analyzeBatchWithGemini(batch, apiKey, existingClusters || [])
         
         allDuplicates.push(...batchResults.duplicates)
         allClusters.push(...batchResults.clusters)

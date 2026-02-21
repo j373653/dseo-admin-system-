@@ -41,14 +41,14 @@ export interface AIAnalysisResult {
  * Analiza keywords usando Google Gemini AI para deduplicación semántica,
  * clustering, detección de canibalizaciones y sugerencia de pilares
  */
-export async function analyzeKeywordsWithAI(keywords: string[]): Promise<AIAnalysisResult> {
+export async function analyzeKeywordsWithAI(keywords: string[], existingClusters?: { name: string; keywords: string[] }[]): Promise<AIAnalysisResult> {
   try {
     const response = await fetch('/api/ai/analyze-keywords', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ keywords })
+      body: JSON.stringify({ keywords, existingClusters })
     })
 
     const data = await response.json()
@@ -76,11 +76,14 @@ export async function analyzeKeywordsWithAI(keywords: string[]): Promise<AIAnaly
 /**
  * Obtiene sugerencias de clusters basadas en análisis de IA
  */
-export async function getAIClusterSuggestions(keywords: string[]): Promise<{
+export async function getAIClusterSuggestions(
+  keywords: string[],
+  existingClusters?: { name: string; keywords: string[] }[]
+): Promise<{
   clusters: { name: string; keywords: string[]; avgConfidence: number; contentType: string }[]
   error?: string
 }> {
-  const result = await analyzeKeywordsWithAI(keywords)
+  const result = await analyzeKeywordsWithAI(keywords, existingClusters)
 
   if (!result.success) {
     return { clusters: [], error: result.error }

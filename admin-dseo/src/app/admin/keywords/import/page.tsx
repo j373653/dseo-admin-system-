@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { supabaseClient } from '@/lib/supabase'
 import { analyzeKeywordsWithAI, AICluster } from '@/lib/ai-analysis'
+import { fuzzyMatch } from '@/lib/fuzzy-match'
 import { Brain, Loader2, CheckCircle, Sparkles, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -85,6 +86,20 @@ export default function ImportKeywordsPage() {
       } catch (err) {
         setError('Error al parsear el CSV: ' + (err as Error).message)
         setLoading(false)
+      }
+
+      // Mark pending keywords that were not assigned to any cluster
+      try {
+        const allImportedIds = importedKeywords.map(k => k.id)
+        const toPending = allImportedIds.filter(id => !assignedIdsForThisRun.has(id))
+        if (toPending.length > 0) {
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ cluster_id: null, status: 'pending' })
+            .in('id', toPending)
+        }
+      } catch (err) {
+        console.error('Error marking pending after import:', err)
       }
     }
     reader.readAsText(csvFile)
@@ -246,7 +261,41 @@ export default function ImportKeywordsPage() {
       let createdCount = 0
       let keywordsClustered = 0
 
+      const assignedIdsForThisRun = new Set<string>()
       for (const cluster of clusters) {
+        // Primer intento: reutilizar cluster existente por nombre si ya existe en DB
+        const { data: existingCluster, error: existingError } = await supabaseClient
+          .from('d_seo_admin_keyword_clusters')
+          .select('id, keyword_count')
+          .ilike('name', cluster.name.replace(/_/g, ' '))
+          .maybeSingle()
+
+        if (existingCluster?.id) {
+          // Ya existe un cluster con este nombre, asignar keywords directamente a este cluster existente
+          const targetClusterId = existingCluster.id
+          const keywordIds = importedKeywords
+            .filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
+              const m = fuzzyMatch(k.keyword, [kw])
+              return m.matched
+            }))
+            .map(k => k.id)
+          if (keywordIds.length > 0) {
+            keywordIds.forEach(id => assignedIdsForThisRun.add(id))
+            await supabaseClient
+              .from('d_seo_admin_raw_keywords')
+              .update({ 
+                cluster_id: targetClusterId, 
+                status: 'clustered',
+                intent: cluster.intent
+              })
+              .in('id', keywordIds)
+            keywordsClustered += keywordIds.length
+          }
+          // No new cluster created
+          continue
+        }
+
+        // Crear un nuevo cluster (no existente)
         const { data: newCluster, error: clusterError } = await supabaseClient
           .from('d_seo_admin_keyword_clusters')
           .insert({
@@ -267,12 +316,15 @@ export default function ImportKeywordsPage() {
 
         if (newCluster) {
           createdCount++
-          
           const keywordIds = importedKeywords
-            .filter(k => cluster.keywords.includes(k.keyword))
+            .filter(k => cluster.keywords && cluster.keywords.length > 0 && cluster.keywords.some((kw) => {
+              const m = fuzzyMatch(k.keyword, [kw])
+              return m.matched
+            }))
             .map(k => k.id)
           
           if (keywordIds.length > 0) {
+            keywordIds.forEach(id => assignedIdsForThisRun.add(id))
             await supabaseClient
               .from('d_seo_admin_raw_keywords')
               .update({ 
