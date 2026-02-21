@@ -251,7 +251,7 @@ export default function KeywordsPage() {
           clustersCreated++
 
           // Buscar keywords con búsqueda case-insensitive
-          const normalizedSearch = cluster.keywords.map((kw: string) => kw.toLowerCase().trim())
+          const normalizedSearch = (cluster.keywords || []).map((kw: string) => (kw || '').toLowerCase().trim()).filter((k: string) => k.length > 0)
           
           // Obtener keywords que coincidan (busqueda case-insensitive)
           const allKeywordsData = await supabaseClient
@@ -260,7 +260,7 @@ export default function KeywordsPage() {
             .in('status', ['pending', 'clustered'])
 
           const matchingKeywords = (allKeywordsData.data || []).filter((k: any) => 
-            normalizedSearch.includes(k.keyword.toLowerCase().trim())
+            k.keyword && normalizedSearch.includes(k.keyword.toLowerCase().trim())
           )
 
           if (matchingKeywords.length > 0) {
@@ -297,19 +297,19 @@ export default function KeywordsPage() {
 
       // Procesar duplicados
       let duplicatesRemoved = 0
-      for (const dupGroup of aiResults.duplicates) {
-        const keywordsToKeep = dupGroup.keywords.slice(0, 1)
-        const keywordsToDiscard = dupGroup.keywords.slice(1)
+      for (const dupGroup of aiResults.duplicates || []) {
+        const keywordsToKeep = (dupGroup.keywords || []).slice(0, 1)
+        const keywordsToDiscard = (dupGroup.keywords || []).slice(1)
 
         if (keywordsToDiscard.length > 0) {
-          const normalizedDiscard = keywordsToDiscard.map((kw: string) => kw.toLowerCase().trim())
+          const normalizedDiscard = keywordsToDiscard.map((kw: string) => (kw || '').toLowerCase().trim()).filter((k: string) => k.length > 0)
           
           const allKeywordsData = await supabaseClient
             .from('d_seo_admin_raw_keywords')
             .select('id')
 
           const matchingIds = (allKeywordsData.data || [])
-            .filter((k: any) => normalizedDiscard.includes(k.keyword.toLowerCase().trim()))
+            .filter((k: any) => k.keyword && normalizedDiscard.includes(k.keyword.toLowerCase().trim()))
             .map((k: any) => k.id)
 
           if (matchingIds.length > 0) {
