@@ -89,8 +89,19 @@ export default function ImportKeywordsPage() {
         setLoading(false)
       }
 
-      // Mark pending keywords after import (disabled temporarily due to TS issues)
-      // This can be re-enabled with a proper async handling in a future patch.
+      // Mark pending keywords after import (re-enabled with proper async handling)
+      try {
+        const allImportedIds = importedKeywords.map(k => k.id)
+        const toPending = allImportedIds.filter(id => !assignedIdsForThisRun.current.has(id))
+        if (toPending.length > 0) {
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ cluster_id: null, status: 'pending' })
+            .in('id', toPending)
+        }
+      } catch (err) {
+        console.error('Error marking pending after import:', err)
+      }
     }
     reader.readAsText(csvFile)
   }
