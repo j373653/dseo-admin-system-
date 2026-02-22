@@ -98,6 +98,12 @@ export default function ProposalPage() {
   }
 
   const handleAnalyzeWithAI = async () => {
+    console.log('=== DEBUG ANALYZE ===')
+    console.log('keywords:', keywords.length)
+    console.log('discardSelected:', discardSelected.length)
+    console.log('step:', step)
+    console.log('useExistingSilos:', useExistingSilos)
+    
     setLoading(true)
     setError('')
 
@@ -105,6 +111,8 @@ export default function ProposalPage() {
       const keywordIds = keywords
         .filter(k => !discardSelected.includes(k.id))
         .map(k => k.id)
+
+      console.log('keywordIds after filter:', keywordIds.length)
 
       const res = await fetch('/api/seo/analyze-proposal', {
         method: 'POST',
