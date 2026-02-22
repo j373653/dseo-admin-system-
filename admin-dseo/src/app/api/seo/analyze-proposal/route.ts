@@ -521,11 +521,11 @@ export async function POST(request: NextRequest) {
       // Convert allSilos to prompt format if needed
       const silosForPrompt: SiloForPrompt[] = useExistingSilos 
         ? existingSilos 
-        : allSilos.map(silo => ({
+        : (allSilos as any[]).map((silo: any) => ({
             name: silo.name,
-            categories: silo.categories.map(cat => ({
+            categories: (silo.categories || []).map((cat: any) => ({
               name: cat.name,
-              pages: cat.pages.map(page => ({
+              pages: (cat.pages || []).map((page: any) => ({
                 main_keyword: page.main_keyword || ''
               }))
             }))
