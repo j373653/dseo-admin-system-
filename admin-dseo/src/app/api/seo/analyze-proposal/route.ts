@@ -334,8 +334,8 @@ ${`{
               intent: page.intent
             })
           }
-convertedPages.length >          
-          if ( 0) {
+          
+          if (convertedPages.length > 0) {
             convertedCategories.push({
               name: cat.name,
               pages: convertedPages
