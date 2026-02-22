@@ -7,6 +7,22 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_
 const MODEL = 'gemini-2.5-flash-lite'
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 
+async function getCompanyContext() {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  
+  const { data } = await supabase
+    .from('d_seo_admin_company_context')
+    .select('key, value')
+  
+  if (!data) return null
+  
+  const context: { [key: string]: any } = {}
+  for (const item of data) {
+    context[item.key] = item.value
+  }
+  return context
+}
+
 function slugify(text: string): string {
   return (text || '')
     .toString()
@@ -35,6 +51,7 @@ async function analyzeSilosWithGemini(
   keywords: string[],
   apiKey: string,
   existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = [],
+  context: { theme?: string; services?: string[]; target_companies?: string[]; sitemap_urls?: string[]; discard_topics?: string[] } = {},
   attempt: number = 1
 ): Promise<{ silos: SiloProposal[]; intentions: { [key: string]: string } }> {
   const MAX_RETRIES = 2
@@ -53,14 +70,20 @@ async function analyzeSilosWithGemini(
       }\n`
     : ''
 
-  const companyContext = `TEMÁTICAS DE LA EMPRESA (d-seo.es):
-- Desarrollo Web (sitios web, wordpress, webs corporativas)
-- Ecommerce (tiendas online, woocommerce)
-- IA (inteligencia artificial, chatbots, machine learning)
-- Apps (aplicaciones móviles, desarrollo de apps)
-- SEO (posicionamiento, seo local, seo técnico, keyword research)
-- Marketing Digital
-- Apps`
+  const theme = context.theme || 'Desarrollo Web, SEO, Marketing Digital, Apps, IA'
+  const services = context.services?.join(', ') || 'Desarrollo web, WordPress, Ecommerce, SEO, IA, Apps'
+  const targetCompanies = context.target_companies?.join(', ') || 'PYMEs, Autónomos, Startups'
+  const sitemapUrls = context.sitemap_urls?.map(u => u.replace('https://d-seo.es', '')).join('\n') || ''
+  const discardTopics = context.discard_topics?.join(', ') || 'redes sociales, ads, facebook, instagram, hosting, dominios'
+
+  const companyContext = `CONTEXTO DE LA EMPRESA (d-seo.es):
+- TEMA PRINCIPAL: ${theme}
+- SERVICIOS: ${services}
+- CLIENTES OBJETIVO: ${targetCompanies}
+- TEMÁTICAS A DESCARTAR (NO trabajar con estas): ${discardTopics}
+
+SITEMS ACTUALES DEL SITEMAP (evitar duplicar contenido existente):
+${sitemapUrls || 'Sin sitemap disponible'}`
 
   const prompt = `${companyContext}
 
@@ -69,7 +92,13 @@ ${keywordList}
 
 ${existingSilosBlock}
 
-Eres un experto en SEO. Analiza las keywords y devuelve una PROPUESTA DE ESTRUCTURA SILO (NO applies nada, solo propone).
+Eres un experto en SEO. Analiza las keywords y devuelve una PROPUESTA DE ESTRUCTURA SILO (NO aplica nada, solo propone).
+
+INSTRUCCIONES ESPECIALES:
+1. Descarta keywords que coincidan con: ${discardTopics}
+2. NO propongas páginas que ya existen en el sitemap
+3. Evita cannibalización (no repetir keywords similares)
+4. Prioriza servicios que faltan en el sitemap
 
 La estructura SILO propuesta debe ser:
 - SILO (Tema principal): Grupo de categoría de nivel superior
@@ -270,6 +299,9 @@ export async function POST(request: NextRequest) {
 
     const existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = []
     
+    const context = await getCompanyContext()
+    console.log('Company context loaded:', context ? 'yes' : 'no')
+    
     if (useExistingSilos) {
       const { data: silos } = await supabase
         .from('d_seo_admin_silos')
@@ -308,7 +340,7 @@ export async function POST(request: NextRequest) {
     
     console.log(`Analyzing ${keywordTexts.length} keywords for SILO proposal...`)
     
-    const proposal = await analyzeSilosWithGemini(keywordTexts, apiKey, existingSilos)
+    const proposal = await analyzeSilosWithGemini(keywordTexts, apiKey, existingSilos, context || {})
 
     return NextResponse.json({
       success: true,
@@ -318,7 +350,8 @@ export async function POST(request: NextRequest) {
       proposal: proposal.silos,
       intentions: proposal.intentions,
       existingSilosUsed: useExistingSilos && existingSilos.length > 0,
-      existingSilosCount: existingSilos.length
+      existingSilosCount: existingSilos.length,
+      contextUsed: !!context
     })
 
   } catch (error: any) {

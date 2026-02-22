@@ -4,65 +4,24 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-const TOPICS_FROM_SITEMAP = [
-  'desarrollo web',
-  'sitios web',
-  'wordpress',
-  'ecommerce',
-  'tienda online',
-  'ia',
-  'inteligencia artificial',
-  'apps',
-  'aplicaciones',
-  'seo',
-  'posicionamiento',
-  'marketing digital',
-  'local seo',
-  'seo técnico',
-  'keyword research',
-  'sectores',
-  'legal',
-  'aviso legal',
-  'privacidad',
-  'cookies'
-]
-
-const SERVICES_KEYWORDS = [
-  'desarrollo',
-  'desarrollador',
-  'programación',
-  'programador',
-  'web',
-  'sitio',
-  'página',
-  'wordpress',
-  'wooocommerce',
-  'ecommerce',
-  'tienda',
-  'online',
-  'tienda online',
-  'ia',
-  'inteligencia artificial',
-  'ai',
-  'machine learning',
-  'chatbot',
-  'apps',
-  'aplicación',
-  'aplicaciones móviles',
-  'seo',
-  'posicionamiento',
-  'google',
-  'marketing',
-  'digital',
-  'optimización',
-  'redes sociales',
-  'social media',
-  'copywriting',
-  'contenidos',
-  'blog',
-  ' Landing page',
-  'web corporativa'
-]
+async function getCompanyContext() {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  
+  const { data, error } = await supabase
+    .from('d_seo_admin_company_context')
+    .select('key, value')
+  
+  if (error || !data) {
+    console.log('Using default context (DB not available)')
+    return null
+  }
+  
+  const context: { [key: string]: any } = {}
+  for (const item of data) {
+    context[item.key] = item.value
+  }
+  return context
+}
 
 function normalizeKeyword(keyword: string): string {
   return keyword
@@ -74,18 +33,26 @@ function normalizeKeyword(keyword: string): string {
     .trim()
 }
 
-function calculateTopicMatch(keyword: string): { match: boolean; reason: string; topic?: string } {
+function calculateTopicMatch(
+  keyword: string, 
+  services: string[] = [], 
+  discardTopics: string[] = []
+): { match: boolean; reason: string; topic?: string } {
   const normalized = normalizeKeyword(keyword)
   const words = normalized.split(' ')
   
-  for (const topic of TOPICS_FROM_SITEMAP) {
+  for (const topic of discardTopics) {
     const topicNormalized = normalizeKeyword(topic)
-    if (normalized.includes(topicNormalized) || topicNormalized.split(' ').every(w => words.includes(w))) {
-      return { match: true, reason: `Coincide con temática: ${topic}`, topic }
+    if (normalized.includes(topicNormalized) || topicNormalized.split(' ').some(w => words.includes(w))) {
+      return { 
+        match: false, 
+        reason: `Descartar: "${topic}" no es temática de d-seo.es`,
+        topic: 'off-topic'
+      }
     }
   }
   
-  for (const service of SERVICES_KEYWORDS) {
+  for (const service of services) {
     const serviceNormalized = normalizeKeyword(service)
     if (normalized.includes(serviceNormalized) || serviceNormalized.split(' ').every(w => words.includes(w))) {
       return { match: true, reason: `Coincide con servicio: ${service}`, topic: 'servicio' }
@@ -94,7 +61,7 @@ function calculateTopicMatch(keyword: string): { match: boolean; reason: string;
   
   return { 
     match: false, 
-    reason: `No coincide con ninguna temática de d-seo.es`,
+    reason: `No coincide con ningún servicio de d-seo.es`,
     topic: undefined
   }
 }
@@ -103,6 +70,19 @@ export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const { keywordIds, keywordTexts } = await request.json()
+    
+    const context = await getCompanyContext()
+    
+    const services = context?.services || [
+      'desarrollo web', 'sitios web', 'wordpress', 'ecommerce', 'tienda online',
+      'ia', 'inteligencia artificial', 'apps', 'aplicaciones', 'seo',
+      'posicionamiento', 'marketing digital', 'optimización web'
+    ]
+    
+    const discardTopics = context?.discard_topics || [
+      'redes sociales', 'facebook', 'instagram', 'twitter', 'ads', 'google ads',
+      'publicidad', 'hosting', 'dominios', 'fotografía', 'diseño gráfico'
+    ]
     
     let keywords: { id: string; keyword: string }[] = []
     
@@ -121,13 +101,13 @@ export async function POST(request: NextRequest) {
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .eq('status', 'pending')
-        .limit(500)
+        .limit(2000)
       
       keywords = data || []
     }
     
     const results = keywords.map(kw => {
-      const analysis = calculateTopicMatch(kw.keyword)
+      const analysis = calculateTopicMatch(kw.keyword, services, discardTopics)
       return {
         id: kw.id,
         keyword: kw.keyword,
