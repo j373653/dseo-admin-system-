@@ -265,16 +265,23 @@ ${`{
             const mainKwLower = page.main_keyword.toLowerCase().trim()
             if (!keywordSet.has(mainKwLower)) {
               validationErrors.push(`Main keyword "${page.main_keyword}" no está en la lista original`)
-              // Mantenerla pero marcar para revisión
+            }
+            
+            // Normalizar secondary_keywords a array
+            let secondaryArr: string[] = []
+            if (Array.isArray(page.secondary_keywords)) {
+              secondaryArr = page.secondary_keywords
+            } else if (typeof page.secondary_keywords === 'string') {
+              secondaryArr = (page.secondary_keywords as string).split(',').map(k => k.trim())
             }
             
             // Validar secondary_keywords - filtrar las que no existen
-            const validSecondary = (page.secondary_keywords || []).filter(
+            const validSecondary = secondaryArr.filter(
               kw => keywordSet.has(kw.toLowerCase().trim())
             )
             
             // Si hay secondary keywords que no existen, registrarlas
-            (page.secondary_keywords || []).forEach(kw => {
+            secondaryArr.forEach(kw => {
               if (!keywordSet.has(kw.toLowerCase().trim())) {
                 validationErrors.push(`Secondary keyword "${kw}" no está en la lista original`)
               }
@@ -284,9 +291,18 @@ ${`{
               ...page,
               secondary_keywords: validSecondary
             }
-          }).filter(page => page.secondary_keywords.length > 0 || keywordSet.has(page.main_keyword.toLowerCase().trim()))
-        })).filter(cat => cat.pages.length > 0)
-      })).filter(silo => silo.categories.length > 0)
+          }).filter(page => {
+            const secondary = Array.isArray(page.secondary_keywords) ? page.secondary_keywords : []
+            return secondary.length > 0 || keywordSet.has(page.main_keyword.toLowerCase().trim())
+          })
+        })).filter(cat => {
+          const pages = Array.isArray(cat.pages) ? cat.pages : []
+          return pages.length > 0
+        })
+      })).filter(silo => {
+        const categories = Array.isArray(silo.categories) ? silo.categories : []
+        return categories.length > 0
+      })
     }
 
     const validatedSilos = validateKeywords(parsed.silos)
