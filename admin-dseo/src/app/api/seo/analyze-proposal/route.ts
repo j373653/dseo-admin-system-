@@ -543,19 +543,19 @@ export async function POST(request: NextRequest) {
       
       // Merge results, avoiding duplicate silo names
       for (const silo of proposal.silos) {
-        const existingSilo = allSilos.find(s => s.name.toLowerCase() === silo.name.toLowerCase())
+        const existingSilo = allSilos.find((s: any) => s.name.toLowerCase() === silo.name.toLowerCase())
         if (!existingSilo) {
           allSilos.push(silo)
         } else {
           // Merge categories into existing silo
           for (const cat of silo.categories) {
-            const existingCat = existingSilo.categories.find(c => c.name.toLowerCase() === cat.name.toLowerCase())
+            const existingCat = existingSilo.categories.find((c: any) => c.name.toLowerCase() === cat.name.toLowerCase())
             if (!existingCat) {
               existingSilo.categories.push(cat)
             } else {
               // Merge pages into existing category
               for (const page of cat.pages) {
-                if (!existingCat.pages.find(p => p.main_keyword.toLowerCase() === page.main_keyword.toLowerCase())) {
+                if (!existingCat.pages.find((p: any) => p.main_keyword.toLowerCase() === page.main_keyword.toLowerCase())) {
                   existingCat.pages.push(page)
                 }
               }
