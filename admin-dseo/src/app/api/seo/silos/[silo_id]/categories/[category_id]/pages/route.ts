@@ -33,3 +33,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Error creating page' }, { status: 400 })
   }
 }
+
+// DELETE: delete a page
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    
+    const { error } = await supabaseClient.from('d_seo_admin_pages').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+}
+
+// PATCH: update a page
+export async function PATCH(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    
+    const body = await req.json()
+    const { main_keyword, url_target, is_pillar, content_type_target, notes } = body
+    
+    const { data, error } = await supabaseClient
+      .from('d_seo_admin_pages')
+      .update({ main_keyword, url_target, is_pillar, content_type_target, notes })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return NextResponse.json({ page: data })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+}

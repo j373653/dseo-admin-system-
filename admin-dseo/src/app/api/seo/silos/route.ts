@@ -78,16 +78,47 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const { name, description, parent_silo_id } = await req.json()
-    console.log('Creating silo:', name, description)
     const { data, error } = await supabaseClient.from('d_seo_admin_silos').insert({ name, description, parent_silo_id }).select().single()
-    if (error) {
-      console.error('Error creating silo:', error)
-      throw new Error(error.message)
-    }
-    console.log('Silo created:', data)
+    if (error) throw new Error(error.message)
     return NextResponse.json({ silo: data })
   } catch (err: any) {
-    console.error('Error in POST silos:', err)
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    
+    const { error } = await supabaseClient.from('d_seo_admin_silos').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    
+    const body = await req.json()
+    const { name, description } = body
+    
+    const { data, error } = await supabaseClient
+      .from('d_seo_admin_silos')
+      .update({ name, description })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return NextResponse.json({ silo: data })
+  } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 })
   }
 }

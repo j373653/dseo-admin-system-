@@ -43,3 +43,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 400 })
   }
 }
+
+// DELETE: delete a category
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    
+    const { error } = await supabaseClient.from('d_seo_admin_categories').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+}
+
+// PATCH: update a category
+export async function PATCH(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    
+    const body = await req.json()
+    const { name, description } = body
+    
+    const { data, error } = await supabaseClient
+      .from('d_seo_admin_categories')
+      .update({ name, description })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw new Error(error.message)
+    return NextResponse.json({ category: data })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+}
