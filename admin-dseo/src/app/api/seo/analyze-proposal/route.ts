@@ -71,10 +71,20 @@ interface SiloProposal {
   }[]
 }
 
+interface SiloForPrompt {
+  name: string
+  categories: {
+    name: string
+    pages: {
+      main_keyword: string
+    }[]
+  }[]
+}
+
 async function analyzeSilosWithGemini(
   keywords: { id: string; keyword: string }[],
   apiKey: string,
-  existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = [],
+  existingSilos: SiloForPrompt[] = [],
   context: { theme?: string; services?: string[]; target_companies?: string[]; sitemap_urls?: string[]; discard_topics?: string[] } = {},
   aiModel: string = 'gemini-2.5-pro',
   aiParams: { maxTokens?: number; temperature?: number } = {},
@@ -451,7 +461,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = []
+    const existingSilos: SiloForPrompt[] = []
     
     const context = await getCompanyContext()
     console.log('Company context loaded:', context ? 'yes' : 'no')
@@ -508,11 +518,24 @@ export async function POST(request: NextRequest) {
       
       console.log(`Analyzing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batchKeywords.length} keywords with model: ${aiModel}`)
       
+      // Convert allSilos to prompt format if needed
+      const silosForPrompt: SiloForPrompt[] = useExistingSilos 
+        ? existingSilos 
+        : allSilos.map(silo => ({
+            name: silo.name,
+            categories: silo.categories.map(cat => ({
+              name: cat.name,
+              pages: cat.pages.map(page => ({
+                main_keyword: page.main_keyword || ''
+              }))
+            }))
+          }))
+      
       // Use existing silos from previous batches to avoid duplicates
       const proposal = await analyzeSilosWithGemini(
         batchKeywords, 
         apiKey, 
-        useExistingSilos ? existingSilos : allSilos, 
+        silosForPrompt, 
         context || {}, 
         aiModel, 
         aiParams
