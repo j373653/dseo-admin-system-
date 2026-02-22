@@ -167,9 +167,9 @@ Devuelve EXACTAMENTE este JSON:
       } else {
         throw new Error('No se encontró JSON en la respuesta')
       }
-    } catch (parseError) {
-      console.error('JSON Parse error. Content:', content.slice(0, 500))
-      throw new Error('Error parseando JSON de Gemini')
+    } catch (parseError: any) {
+      console.error('JSON Parse error. Content:', content.slice(0, 1000))
+      throw new Error('Error parseando JSON de Gemini: ' + content.slice(0, 200))
     }
 
     if (!parsed.silos) {
@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const keywordTexts = keywords.map(k => k.keyword)
+    const keywordTexts = keywords.slice(0, 300).map(k => k.keyword)
     
     console.log(`Analyzing ${keywordTexts.length} keywords for SILO proposal...`)
     
@@ -313,7 +313,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       keywordCount: keywords.length,
-      keywords: keywords.map(k => ({ id: k.id, keyword: k.keyword })),
+      keywordsAnalyzed: keywordTexts.length,
+      keywords: keywords.slice(0, 300).map(k => ({ id: k.id, keyword: k.keyword })),
       proposal: proposal.silos,
       intentions: proposal.intentions,
       existingSilosUsed: useExistingSilos && existingSilos.length > 0,
