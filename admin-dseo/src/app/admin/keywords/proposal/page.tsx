@@ -49,10 +49,26 @@ export default function ProposalPage() {
   const [useExistingSilos, setUseExistingSilos] = useState(true)
   const [applying, setApplying] = useState(false)
 
+  const [hasSavedProposal, setHasSavedProposal] = useState(false)
+
   useEffect(() => {
     loadPendingKeywords()
-    loadSavedProposal()
+    checkSavedProposal()
   }, [])
+
+  const checkSavedProposal = () => {
+    const saved = localStorage.getItem('dseo_last_proposal')
+    if (saved) {
+      try {
+        const data = JSON.parse(saved)
+        if (data.proposal && data.proposal.length > 0) {
+          setHasSavedProposal(true)
+        }
+      } catch (e) {
+        console.error('Error checking saved proposal:', e)
+      }
+    }
+  }
 
   const loadSavedProposal = () => {
     const saved = localStorage.getItem('dseo_last_proposal')
@@ -71,14 +87,14 @@ export default function ProposalPage() {
     }
   }
 
-  const saveProposal = () => {
-    const data = {
-      proposal,
-      intentions,
-      discardSelected,
-      savedAt: new Date().toISOString()
-    }
-    localStorage.setItem('dseo_last_proposal', JSON.stringify(data))
+  const handleApplyAndContinue = () => {
+    saveProposal()
+    setStep(3)
+  }
+
+  const clearSavedProposal = () => {
+    localStorage.removeItem('dseo_last_proposal')
+    setHasSavedProposal(false)
   }
 
   const loadPendingKeywords = async () => {
@@ -158,8 +174,24 @@ export default function ProposalPage() {
       if (data.proposal) {
         setProposal(data.proposal)
         setIntentions(data.intentions || {})
+        
+        // Guardar propuesta y avanzar al paso 3
+        const proposalData = {
+          proposal: data.proposal,
+          intentions: data.intentions || {},
+          discardSelected,
+          validationErrors: data.validationErrors || [],
+          savedAt: new Date().toISOString()
+        }
+        localStorage.setItem('dseo_last_proposal', JSON.stringify(proposalData))
+        setHasSavedProposal(true)
+        
+        // Mostrar warning si hay errores de validación
+        if (data.validationErrors && data.validationErrors.length > 0) {
+          setError(`Warning: ${data.validationErrors.length} keywords no se encontraron en la lista original: ${data.validationErrors.slice(0, 3).join(', ')}...`)
+        }
+        
         setStep(3)
-        saveProposal()
       } else {
         setError(data.error + (data.debug ? ` (debug: ${JSON.stringify(data.debug)}` : ''))
       }
@@ -302,7 +334,7 @@ export default function ProposalPage() {
               <p className="text-gray-600 mb-4">
                 Se analizarán {keywords.length} keywords pendientes para verificar que coinciden con la temática de d-seo.es
               </p>
-              <div className="flex gap-4">
+              <div className="flex gap-4 flex-wrap">
                 <button
                   onClick={handleFilterByTopic}
                   disabled={loading || keywords.length === 0}
@@ -310,7 +342,8 @@ export default function ProposalPage() {
                 >
                   {loading ? 'Analizando...' : 'Filtrar por Temática'}
                 </button>
-                {localStorage.getItem('dseo_last_proposal') && (
+                
+                {hasSavedProposal && (
                   <button
                     onClick={loadSavedProposal}
                     className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
@@ -318,7 +351,30 @@ export default function ProposalPage() {
                     Re-aplicar última propuesta
                   </button>
                 )}
+                
+                {proposal.length > 0 && step < 3 && (
+                  <button
+                    onClick={() => setStep(3)}
+                    className="px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                  >
+                    Continuar con propuesta actual
+                  </button>
+                )}
               </div>
+              
+              {hasSavedProposal && (
+                <div className="mt-4 p-3 bg-orange-50 rounded border border-orange-200">
+                  <p className="text-orange-700 text-sm">
+                    Tienes una propuesta guardada. Puedes re-aplicarla o continuar desde donde lo dejaste.
+                  </p>
+                  <button
+                    onClick={clearSavedProposal}
+                    className="mt-2 text-xs text-orange-600 underline"
+                  >
+                    Borrar propuesta guardada
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

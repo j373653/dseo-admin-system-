@@ -79,7 +79,7 @@ async function analyzeSilosWithGemini(
   aiModel: string = 'gemini-2.5-pro',
   aiParams: { maxTokens?: number; temperature?: number } = {},
   attempt: number = 1
-): Promise<{ silos: SiloProposal[]; intentions: { [key: string]: string } }> {
+): Promise<{ silos: SiloProposal[]; intentions: { [key: string]: string }; validationErrors: string[] }> {
   const MAX_RETRIES = 2
   
   const keywordList = keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')
@@ -111,48 +111,57 @@ async function analyzeSilosWithGemini(
 SITEMS ACTUALES DEL SITEMAP (evitar duplicar contenido existente):
 ${sitemapUrls || 'Sin sitemap disponible'}`
 
-  const prompt = `${companyContext}
+  const prompt = `### ROL: Senior SEO Strategist & Information Architect
+Actúa como un consultor SEO experto con 15 años de experiencia en arquitectura de información y jerarquía de contenidos. Tu especialidad es la creación de estructuras SILO que maximizan el traspaso de autoridad y evitan la canibalización.
 
-PALABRAS CLAVE A ANALIZAR - SOLO ESTAS, NO INVENTES O AGREGUES OTRAS:
+### CONTEXTO Y OBJETIVO
+El objetivo es diseñar una PROPUESTA DE ESTRUCTURA SILO lógica y optimizada utilizando ÚNICAMENTE una lista de palabras clave proporcionada.
+
+### DATOS DE ENTRADA
+1. PALABRAS CLAVE A ANALIZAR (SOLO estas, NO inventes):
 ${keywordList}
 
-${existingSilosBlock}
+2. ESTRUCTURA ACTUAL / SITEMAP:
+${existingSilosBlock || 'Sin estructura existente'}
 
-Eres un experto en SEO. Analiza las keywords y devuelve una PROPUESTA DE ESTRUCTURA SILO (NO aplica nada, solo propone).
+3. TEMAS A DESCARTAR: ${discardTopics}
 
-INSTRUCCIONES OBLIGATORIAS:
-1. SOLO usa las keywords de la lista "PALABRAS CLAVE A ANALIZAR" - NO inventes, NO agregues otras keywords
+### REGLAS CRÍTICAS DE CUMPLIMIENTO
+1. PROHIBICIÓN DE INVENCIÓN: No puedes añadir, modificar ni inventar ninguna keyword. Si no está en la lista "PALABRAS CLAVE A ANALIZAR", NO EXISTE.
 2. Las secondary_keywords DEBEN ser keywords de la lista proporcionada
-3. Descarta keywords que coincidan con: ${discardTopics}
-4. NO propongas páginas que ya existen en el sitemap
-5. Evita cannibalización (no repetir keywords similares)
-6. Prioriza servicios que faltan en el sitemap
+3. FILTRO NEGATIVO: Descarta inmediatamente cualquier keyword que coincida con: ${discardTopics}
+4. ANTI-CANIBALIZACIÓN: No proposes páginas que ya existen en el sitemap actual
+5. PRIORIZACIÓN: Da preferencia a keywords que representen servicios o categorías que NO estén en el sitemap actual
+6. Cada página propuesta debe tener una main_keyword única de la lista proporcionada
 
-La estructura SILO propuesta debe ser:
+### FASES DE EJECUCIÓN
+1. Fase de Limpieza: Filtra la lista original eliminando temas descartados y keywords del sitemap
+2. Fase de Clustering: Agrupa las keywords restantes por intención de búsqueda y temática
+3. Fase de Arquitectura: Define qué keywords funcionarán como "Páginas Pilar" y cuáles como "Páginas de Soporte"
+4. Fase de Verificación: Asegúrate de que ninguna keyword secundaria se repita en diferentes páginas
+
+### ESTRUCTURA SILO
 - SILO (Tema principal): Grupo de categoría de nivel superior
 - CATEGORÍA: Sub-tema dentro del silo
 - PÁGINA: Página de contenido específica
 
 Para CADA página, especifica:
-- main_keyword: Keyword principal (DEBE ser una de las keywords proporcionadas)
-- secondary_keywords: Keywords secundarias (SOLO de la lista proporcionada)
-- type: "service" (página de servicio), "blog" (artículo), "landing" (página de aterrizaje)
+- main_keyword: Keyword principal (OBLIGATORIO: debe estar en la lista de PALABRAS CLAVE A ANALIZAR)
+- secondary_keywords: Keywords secundarias (OBLIGATORIO: todas de la lista proporcionada, separadas por coma)
+- type: "service" (servicio), "blog" (artículo), "landing" (aterrizaje)
 - is_pillar: true si es la página más importante de la categoría
-- intent: "informational" (busca información), "transactional" (quiere comprar/contratar), "commercial" (compara/decide)
+- intent: "informational" (información), "transactional" (compra/contratar), "commercial" (compara)
 
-IMPORTANTE:
-- Agrupa las keywords de forma lógica
-- Maximiza 5-7 silos (no cientos)
-- Cada categoría 1-3 páginas máximo
+### REGLAS FINALES
+- NO INVENTES keywords - usa EXACTAMENTE las de la lista
+- Maximiza 5-7 silos
+- Cada categoría: 1-3 páginas máximo
 - keywords "transactional" → tipo "service" o "landing"
 - keywords "informational" → tipo "blog"
-- is_pillar = true solo para la página más importante de cada categoría
-- keywords muy similares (duplicados semánticos) -> agrupa en la misma página
-- NO INVENTES keywords - usa EXACTAMENTE las de la lista
+- keywords muy similares → agrupa en la misma página
 
-Devuelve EXACTAMENTE este JSON:
-
-{
+### FORMATO DE SALIDA JSON:
+${`{
   "silos": [
     {
       "name": "Desarrollo Web",
@@ -162,11 +171,18 @@ Devuelve EXACTAMENTE este JSON:
           "pages": [
             {
               "main_keyword": "desarrollo wordpress profesional",
-              "secondary_keywords": ["wordpress developer", "programador wp", "crear web wordpress"],
+              "secondary_keywords": ["wordpress developer", "programador wp"],
               "type": "service",
               "is_pillar": true,
               "intent": "transactional"
-            },
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "intentions": {}
+}`}
             {
               "main_keyword": "cuánto cuesta una web wordpress",
               "secondary_keywords": ["precio web wordpress", "presupuesto wordpress"],
@@ -234,9 +250,53 @@ Devuelve EXACTAMENTE este JSON:
       throw new Error('Respuesta sin estructura de silos')
     }
 
+    // Validación post-IA: verificar que las keywords propuestas existen en la lista original
+    const keywordSet = new Set(keywords.map(k => k.toLowerCase().trim()))
+    const validationErrors: string[] = []
+    
+    // Función para validar y limpiar keywords
+    const validateKeywords = (silos: SiloProposal[]): SiloProposal[] => {
+      return silos.map(silo => ({
+        ...silo,
+        categories: silo.categories.map(cat => ({
+          ...cat,
+          pages: cat.pages.map(page => {
+            // Validar main_keyword
+            const mainKwLower = page.main_keyword.toLowerCase().trim()
+            if (!keywordSet.has(mainKwLower)) {
+              validationErrors.push(`Main keyword "${page.main_keyword}" no está en la lista original`)
+              // Mantenerla pero marcar para revisión
+            }
+            
+            // Validar secondary_keywords - filtrar las que no existen
+            const validSecondary = (page.secondary_keywords || []).filter(
+              kw => keywordSet.has(kw.toLowerCase().trim())
+            )
+            
+            // Si hay secondary keywords que no existen, registrarlas
+            (page.secondary_keywords || []).forEach(kw => {
+              if (!keywordSet.has(kw.toLowerCase().trim())) {
+                validationErrors.push(`Secondary keyword "${kw}" no está en la lista original`)
+              }
+            })
+            
+            return {
+              ...page,
+              secondary_keywords: validSecondary
+            }
+          }).filter(page => page.secondary_keywords.length > 0 || keywordSet.has(page.main_keyword.toLowerCase().trim()))
+        })).filter(cat => cat.pages.length > 0)
+      })).filter(silo => silo.categories.length > 0)
+    }
+
+    const validatedSilos = validateKeywords(parsed.silos)
+    
+    console.log('Validación de keywords:', validationErrors.length > 0 ? validationErrors.join(', ') : 'OK')
+
     return {
-      silos: parsed.silos || [],
-      intentions: parsed.intentions || {}
+      silos: validatedSilos,
+      intentions: parsed.intentions || {},
+      validationErrors
     }
 
   } catch (error: any) {
@@ -383,6 +443,7 @@ export async function POST(request: NextRequest) {
       keywords: keywords.slice(0, 150).map(k => ({ id: k.id, keyword: k.keyword })),
       proposal: proposal.silos,
       intentions: proposal.intentions,
+      validationErrors: proposal.validationErrors,
       existingSilosUsed: useExistingSilos && existingSilos.length > 0,
       existingSilosCount: existingSilos.length,
       contextUsed: !!context
