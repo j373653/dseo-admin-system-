@@ -20,13 +20,27 @@ export async function POST(request: NextRequest) {
   try {
     const { 
       proposal,
-      keywords,
       discardKeywordIds,
       keepPendingKeywordIds
     } = await request.json()
 
+    console.log('=== APPLY PROPOSAL DEBUG ===')
+    console.log('proposal.silos:', proposal?.silos?.length)
+    console.log('discardKeywordIds:', discardKeywordIds?.length)
+    console.log('keepPendingKeywordIds:', keepPendingKeywordIds?.length)
+
     if (!proposal || !proposal.silos || proposal.silos.length === 0) {
       return NextResponse.json({ error: 'Propuesta vacía' }, { status: 400 })
+    }
+
+    const results = {
+      silosCreated: 0,
+      categoriesCreated: 0,
+      pagesCreated: 0,
+      keywordsClustered: 0,
+      keywordsDiscarded: 0,
+      keywordsPending: 0,
+      errors: [] as string[]
     }
 
     const results = {
@@ -65,6 +79,7 @@ export async function POST(request: NextRequest) {
 
         if (existingSilo.data) {
           results.silosCreated++
+          console.log('Silo created/updated:', siloData.name, existingSilo.data.id)
         }
 
         const siloId = existingSilo.data?.id
