@@ -216,13 +216,33 @@ export async function POST(request: NextRequest) {
     
     if (keywordIds && keywordIds.length > 0) {
       console.log('Fetching keywords with IDs...')
-      const { data, error } = await supabase
-        .from('d_seo_admin_raw_keywords')
-        .select('id, keyword')
-        .in('id', keywordIds)
+      console.log('First 3 keywordIds:', keywordIds.slice(0, 3))
+      console.log('keywordIds type:', typeof keywordIds[0])
       
-      console.log('Query result - data:', data?.length, 'error:', error)
-      keywords = data || []
+      // Fetch in batches if too many IDs
+      let allKeywords: { id: string; keyword: string }[] = []
+      const BATCH_SIZE = 100
+      
+      for (let i = 0; i < keywordIds.length; i += BATCH_SIZE) {
+        const batch = keywordIds.slice(i, i + BATCH_SIZE)
+        const { data, error } = await supabase
+          .from('d_seo_admin_raw_keywords')
+          .select('id, keyword')
+          .in('id', batch)
+        
+        if (error) {
+          console.log('Batch query error:', error)
+        }
+        if (data) {
+          allKeywords = [...allKeywords, ...data]
+        }
+      }
+      
+      console.log('Query result - total data:', allKeywords.length)
+      if (allKeywords.length > 0) {
+        console.log('Sample returned:', allKeywords.slice(0, 2))
+      }
+      keywords = allKeywords
     } else {
       console.log('Fetching all pending keywords...')
       const { data, error } = await supabase
