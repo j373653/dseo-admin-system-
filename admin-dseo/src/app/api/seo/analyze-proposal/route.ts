@@ -170,10 +170,11 @@ Para CADA página, especifica:
 
 ### REGLAS FINALES
 - NO INVENTES keywords - usa EXACTAMENTE las de la lista
-- Maximiza 5-7 silos
+- Crea TODOS los silos que sean necesarios para cubrir todas las keywords proporcionadas
 - keywords "transactional" → tipo "service" o "landing"
 - keywords "informational" → tipo "blog"
 - keywords muy similares → agrupa en la misma página
+- CADA keyword de la lista debe aparecer al menos una vez (como main o secondary)
 
 ### FORMATO DE SALIDA JSON:
 - Para cada página, incluye TANTO el ID como el texto de la keyword (para validación cruzada)
@@ -354,16 +355,26 @@ ${`{
             let keywordId = page.main_keyword_id
             let mainKeywordText = page.main_keyword || ''
             
-            // Si el ID no es válido, buscar por texto
+            // Si el ID no es válido, buscar por texto (matching flexible)
             if (!keywordId || !validKeywordIds.has(keywordId)) {
               if (mainKeywordText) {
-                const match = keywords.find(k => 
-                  k.keyword.toLowerCase().trim() === mainKeywordText.toLowerCase().trim()
+                const mainTextLower = mainKeywordText.toLowerCase().trim()
+                // Primero buscar coincidencia exacta
+                let match = keywords.find(k => 
+                  k.keyword.toLowerCase().trim() === mainTextLower
                 )
+                // Si no hay coincidencia exacta, buscar por inclusión
+                if (!match) {
+                  match = keywords.find(k => 
+                    k.keyword.toLowerCase().includes(mainTextLower) ||
+                    mainTextLower.includes(k.keyword.toLowerCase())
+                  )
+                }
                 if (match) {
                   keywordId = match.id
-                  console.log(`Keyword match por texto: "${mainKeywordText}" → ID: ${keywordId}`)
+                  console.log(`Main keyword match por texto: "${mainKeywordText}" → ID: ${keywordId}`)
                 } else {
+                  console.log(`Main keyword no encontrada: "${mainKeywordText}"`)
                   validationErrors.push(`Keyword "${mainKeywordText}" no encontrada en la lista`)
                   continue
                 }
@@ -378,19 +389,30 @@ ${`{
             const secondaryTexts = page.secondary_keywords || []
             const secondaryIdTexts = page.secondary_keywords_ids || []
             
-            // Por cada secondary, primero intentar por ID, luego por texto
+            // Por cada secondary, primero intentar por ID exacto
             for (const secId of secondaryIdTexts) {
               if (validKeywordIds.has(secId)) {
                 secondaryIds.push(secId)
               }
             }
-            // Buscar por texto los que no se encontraron por ID
+            // Buscar por texto los que no se encontraron por ID - matching flexible
             for (const secText of secondaryTexts) {
-              const match = keywords.find(k => 
-                k.keyword.toLowerCase().trim() === secText.toLowerCase().trim()
+              const secTextLower = secText.toLowerCase().trim()
+              // Primero buscar coincidencia exacta
+              let match = keywords.find(k => 
+                k.keyword.toLowerCase().trim() === secTextLower
               )
+              // Si no hay coincidencia exacta, buscar por inclusión
+              if (!match) {
+                match = keywords.find(k => 
+                  k.keyword.toLowerCase().includes(secTextLower) ||
+                  secTextLower.includes(k.keyword.toLowerCase())
+                )
+              }
               if (match && !secondaryIds.includes(match.id)) {
                 secondaryIds.push(match.id)
+              } else if (!match) {
+                console.log(`Secondary keyword no encontrada: "${secText}"`)
               }
             }
             
