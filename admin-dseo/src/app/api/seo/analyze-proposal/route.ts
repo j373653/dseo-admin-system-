@@ -11,7 +11,7 @@ async function getAIConfig() {
   
   const { data } = await supabase
     .from('d_seo_admin_ai_config')
-    .select('task, model, parameters')
+    .select('task, model, parameters, active')
   
   if (!data) return { silo: { model: 'gemini-2.5-pro', parameters: { maxTokens: 20000, temperature: 0.3 } } }
   
