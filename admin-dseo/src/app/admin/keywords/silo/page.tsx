@@ -160,9 +160,9 @@ export default function SilosPage() {
     }
   }
 
-  const deleteCategory = async (id: string) => {
+  const deleteCategory = async (id: string, siloId: string) => {
     if (!confirm('¿Estás seguro de eliminar esta categoría y todas sus páginas?')) return
-    const resp = await fetch(`/api/seo/silos/1/categories?id=${id}`, { method: 'DELETE' })
+    const resp = await fetch(`/api/seo/silos/${siloId}/categories?id=${id}`, { method: 'DELETE' })
     if (resp.ok) {
       await fetchSilos()
     }
@@ -174,8 +174,8 @@ export default function SilosPage() {
     setEditCatDesc(cat.description || '')
   }
 
-  const saveEditCategory = async (id: string) => {
-    const resp = await fetch(`/api/seo/silos/1/categories?id=${id}`, {
+  const saveEditCategory = async (id: string, siloId: string) => {
+    const resp = await fetch(`/api/seo/silos/${siloId}/categories?id=${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editCatName, description: editCatDesc })
@@ -207,9 +207,9 @@ export default function SilosPage() {
     }
   }
 
-  const deletePage = async (id: string) => {
+  const deletePage = async (id: string, siloId: string, categoryId: string) => {
     if (!confirm('¿Estás seguro de eliminar esta página?')) return
-    const resp = await fetch(`/api/seo/silos/1/categories/1/pages?id=${id}`, { method: 'DELETE' })
+    const resp = await fetch(`/api/seo/silos/${siloId}/categories/${categoryId}/pages?id=${id}`, { method: 'DELETE' })
     if (resp.ok) {
       await fetchSilos()
     }
@@ -223,8 +223,8 @@ export default function SilosPage() {
     setEditPageType(page.content_type_target)
   }
 
-  const saveEditPage = async (id: string) => {
-    const resp = await fetch(`/api/seo/silos/1/categories/1/pages?id=${id}`, {
+  const saveEditPage = async (id: string, siloId: string, categoryId: string) => {
+    const resp = await fetch(`/api/seo/silos/${siloId}/categories/${categoryId}/pages?id=${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -398,7 +398,7 @@ export default function SilosPage() {
                                 placeholder="Descripción"
                                 className="border rounded px-2 py-1 flex-1"
                               />
-                              <button onClick={() => saveEditCategory(c.id)} className="px-2 py-1 bg-green-600 text-white rounded text-sm">Guardar</button>
+                              <button onClick={() => saveEditCategory(c.id, s.id)} className="px-2 py-1 bg-green-600 text-white rounded text-sm">Guardar</button>
                               <button onClick={() => setEditingCategory(null)} className="px-2 py-1 bg-gray-400 text-white rounded text-sm">Cancelar</button>
                             </div>
                           ) : (
@@ -415,7 +415,7 @@ export default function SilosPage() {
                                   Editar
                                 </button>
                                 <button 
-                                  onClick={() => deleteCategory(c.id)}
+                                  onClick={() => deleteCategory(c.id, s.id)}
                                   className="text-red-500 hover:text-red-700 text-sm"
                                 >
                                   Eliminar
@@ -465,7 +465,7 @@ export default function SilosPage() {
                                       </label>
                                     </div>
                                     <div className="flex gap-2">
-                                      <button onClick={() => saveEditPage(p.id)} className="px-2 py-1 bg-green-600 text-white rounded text-sm">Guardar</button>
+                                      <button onClick={() => saveEditPage(p.id, s.id, c.id)} className="px-2 py-1 bg-green-600 text-white rounded text-sm">Guardar</button>
                                       <button onClick={() => setEditingPage(null)} className="px-2 py-1 bg-gray-400 text-white rounded text-sm">Cancelar</button>
                                     </div>
                                   </div>
@@ -489,7 +489,7 @@ export default function SilosPage() {
                                         Editar
                                       </button>
                                       <button 
-                                        onClick={() => deletePage(p.id)}
+                                        onClick={() => deletePage(p.id, s.id, c.id)}
                                         className="text-red-500 hover:text-red-700 text-sm"
                                       >
                                         Eliminar
