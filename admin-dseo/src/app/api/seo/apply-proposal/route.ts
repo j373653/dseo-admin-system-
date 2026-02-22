@@ -112,13 +112,18 @@ export async function POST(request: NextRequest) {
 
             const categoryId = existingCat.data?.id
 
+            if (!categoryId) {
+              console.error('Category ID not found, skipping pages')
+              continue
+            }
+
             for (const pageData of (catData.pages || [])) {
               try {
-                console.log('Processing page:', pageData.main_keyword)
+                console.log('Processing page:', pageData.main_keyword, 'for category:', categoryId)
                 
                 const { data: page, error: pageError } = await supabase
                   .from('d_seo_admin_pages')
-                  .upsert({
+                  .insert({
                     silo_id: siloId,
                     category_id: categoryId,
                     main_keyword: pageData.main_keyword,
