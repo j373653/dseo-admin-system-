@@ -233,8 +233,14 @@ export async function POST(request: NextRequest) {
     console.log('Keywords found:', keywords.length)
     
     if (keywords.length === 0) {
-      console.log('ERROR: No keywords found')
-      return NextResponse.json({ error: 'No hay keywords pendientes para analizar' }, { status: 400 })
+      console.log('ERROR: No keywords found - returning detailed error')
+      return NextResponse.json({ 
+        error: 'No hay keywords pendientes para analizar',
+        debug: {
+          keywordIdsReceived: keywordIds?.length || 0,
+          useExistingSilos
+        }
+      }, { status: 400 })
     }
 
     const existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = []

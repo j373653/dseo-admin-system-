@@ -125,12 +125,14 @@ export default function ProposalPage() {
 
       const data = await res.json()
 
+      console.log('API response:', data)
+      
       if (data.proposal) {
         setProposal(data.proposal)
         setIntentions(data.intentions || {})
         setStep(3)
       } else {
-        setError(data.error || 'Error al analizar')
+        setError(data.error + (data.debug ? ` (debug: ${JSON.stringify(data.debug)}` : ''))
       }
     } catch (err: any) {
       setError(err.message)
