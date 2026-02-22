@@ -221,7 +221,7 @@ ${`{
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: aiParams.temperature ?? 0.3,
-        maxOutputTokens: aiParams.maxTokens ?? 20000,
+        maxOutputTokens: aiParams.maxTokens ?? 40000,
         responseMimeType: 'application/json'
       }
     }
@@ -256,7 +256,7 @@ ${`{
       if (codeBlockMatch) {
         try {
           return JSON.parse(codeBlockMatch[1].trim())
-        } catch (e) { /* continue */ }
+        } { /* continue */ catch (e) }
       }
       
       // Método 2: Buscar desde primer { hasta último }
@@ -267,19 +267,41 @@ ${`{
         } catch (e) { /* continue */ }
       }
       
-      // Método 3: Intentar reparar JSON truncado
+      // Método 3: Intentar reparar JSON truncado de forma más robusta
       const partialMatch = text.match(/\{[\s\S]+/)
       if (partialMatch) {
-        // Intentar cerrar el JSON manualmente
         let fixed = partialMatch[0]
-        const opens = (fixed.match(/\{/g) || []).length
-        const closes = (fixed.match(/\}/g) || []).length
-        if (opens > closes) {
-          fixed += '}'.repeat(opens - closes)
+        
+        // Cerrar corchetes abiertos
+        const bracketOpens = (fixed.match(/\[/g) || []).length
+        const bracketCloses = (fixed.match(/\]/g) || []).length
+        if (bracketOpens > bracketCloses) {
+          fixed += ']'.repeat(bracketOpens - bracketCloses)
         }
+        
+        // Cerrar llaves abiertas
+        const braceOpens = (fixed.match(/\{/g) || []).length
+        const braceCloses = (fixed.match(/\}/g) || []).length
+        if (braceOpens > braceCloses) {
+          fixed += '}'.repeat(braceOpens - braceCloses)
+        }
+        
+        // Eliminar comillas abiertas al final
+        fixed = fixed.replace(/,\s*$/, '')
+        fixed = fixed.replace(/"$/, '')
+        
         try {
           return JSON.parse(fixed)
-        } catch (e) { /* continue */ }
+        } catch (e) {
+          // Último intento: buscar solo la parte válida del JSON
+          const validStart = fixed.indexOf('{"silos"')
+          if (validStart >= 0) {
+            const partialJson = fixed.substring(validStart)
+            try {
+              return JSON.parse(partialJson)
+            } catch (e2) { /* fall through */ }
+          }
+        }
       }
       
       return null
@@ -505,7 +527,7 @@ export async function POST(request: NextRequest) {
     const aiModel = siloConfig.model
     const aiParams = siloConfig.parameters || {}
 
-    const BATCH_SIZE = 150
+    const BATCH_SIZE = 100
     const allSilos: any[] = []
     const allIntentions: { [key: string]: string } = {}
     const allValidationErrors: string[] = []
