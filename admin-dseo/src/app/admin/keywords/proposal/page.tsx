@@ -223,7 +223,6 @@ export default function ProposalPage() {
       if (data.success) {
         setSuccess(`Propuesta aplicada: ${data.results.keywordsClustered} keywords clusterizadas, ${data.results.keywordsDiscarded} descartadas`)
         setStep(4)
-        localStorage.removeItem('dseo_last_proposal')
       } else {
         setError(data.error || 'Error al aplicar')
       }

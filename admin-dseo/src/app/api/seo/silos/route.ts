@@ -11,38 +11,47 @@ export async function GET() {
       return NextResponse.json({ error: silosError.message }, { status: 500 })
     }
     
+    // Fetch all keyword assignments with keyword_id
     const { data: assignments } = await supabaseClient
       .from('d_seo_admin_keyword_assignments')
-      .select(`
-        id,
-        page_id,
-        keyword:raw_keywords(id, keyword, search_volume, intent)
-      `)
+      .select('id, page_id, keyword_id')
     
     const pageKeywordsMap: { [pageId: string]: any[] } = {}
     
-    if (assignments) {
-      for (const a of assignments) {
-        const pageId = a.page_id
-        if (!pageKeywordsMap[pageId]) {
-          pageKeywordsMap[pageId] = []
+    if (assignments && assignments.length > 0) {
+      // Get unique keyword IDs
+      const keywordIds = [...new Set(assignments.map(a => a.keyword_id).filter(Boolean))]
+      
+      if (keywordIds.length > 0) {
+        // Fetch all keywords in one call
+        const { data: keywords } = await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .select('id, keyword, search_volume, intent')
+          .in('id', keywordIds)
+        
+        // Build a map of keyword_id -> keyword data
+        const keywordMap: { [id: string]: any } = {}
+        if (keywords) {
+          for (const kw of keywords) {
+            keywordMap[kw.id] = kw
+          }
         }
-        const kw = a.keyword as any
-        if (kw && Array.isArray(kw) && kw.length > 0) {
-          const k = kw[0]
-          pageKeywordsMap[pageId].push({
-            id: k.id,
-            keyword: k.keyword,
-            search_volume: k.search_volume,
-            intent: k.intent
-          })
-        } else if (kw && !Array.isArray(kw)) {
-          pageKeywordsMap[pageId].push({
-            id: kw.id,
-            keyword: kw.keyword,
-            search_volume: kw.search_volume,
-            intent: kw.intent
-          })
+        
+        // Map keywords to pages
+        for (const a of assignments) {
+          const pageId = a.page_id
+          const kw = keywordMap[a.keyword_id]
+          if (pageId && kw) {
+            if (!pageKeywordsMap[pageId]) {
+              pageKeywordsMap[pageId] = []
+            }
+            pageKeywordsMap[pageId].push({
+              id: kw.id,
+              keyword: kw.keyword,
+              search_volume: kw.search_volume,
+              intent: kw.intent
+            })
+          }
         }
       }
     }

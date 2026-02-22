@@ -9,25 +9,45 @@ export async function GET(req: NextRequest) {
     const unassigned = searchParams.get('unassigned')
     
     if (pageId) {
+      // Fetch assignments with keyword_id manually
       const { data: assignments } = await supabaseClient
         .from('d_seo_admin_keyword_assignments')
-        .select(`
-          id,
-          keyword:raw_keywords(id, keyword, search_volume, intent)
-        `)
+        .select('id, page_id, keyword_id')
         .eq('page_id', pageId)
       
-      const keywords = (assignments || []).map((a: any) => {
-        const kw = a.keyword
-        if (Array.isArray(kw) && kw.length > 0) {
-          return { assignment_id: a.id, ...kw[0] }
-        } else if (kw && !Array.isArray(kw)) {
-          return { assignment_id: a.id, ...kw }
-        }
-        return null
-      }).filter(Boolean)
+      if (!assignments || assignments.length === 0) {
+        return NextResponse.json({ keywords: [] })
+      }
       
-      return NextResponse.json({ keywords })
+      // Get keyword IDs
+      const keywordIds = assignments.map(a => a.keyword_id).filter(Boolean)
+      
+      if (keywordIds.length === 0) {
+        return NextResponse.json({ keywords: [] })
+      }
+      
+      // Fetch keywords
+      const { data: keywords } = await supabaseClient
+        .from('d_seo_admin_raw_keywords')
+        .select('id, keyword, search_volume, intent')
+        .in('id', keywordIds)
+      
+      // Build result
+      const keywordMap: { [id: string]: any } = {}
+      if (keywords) {
+        for (const kw of keywords) {
+          keywordMap[kw.id] = kw
+        }
+      }
+      
+      const result = assignments
+        .filter(a => a.keyword_id && keywordMap[a.keyword_id])
+        .map(a => ({
+          assignment_id: a.id,
+          ...keywordMap[a.keyword_id]
+        }))
+      
+      return NextResponse.json({ keywords: result })
     }
     
     if (unassigned === 'true') {
