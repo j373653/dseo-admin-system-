@@ -10,7 +10,7 @@ async function getAIConfig() {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   
   const { data } = await supabase
-d_seo_admin    .from('_ai_config')
+    .from('d_seo_admin_ai_config')
     .select('task, model, parameters')
   
   if (!data) return { silo: { model: 'gemini-2.5-pro', parameters: { maxTokens: 20000, temperature: 0.3 } } }
