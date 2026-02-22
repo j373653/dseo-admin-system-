@@ -221,8 +221,11 @@ ${`{
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: aiParams.temperature ?? 0.3,
-        maxOutputTokens: aiParams.maxTokens ?? 40000,
-        responseMimeType: 'application/json'
+        maxOutputTokens: aiParams.maxTokens ?? 20000,
+        responseMimeType: 'application/json',
+        thinkingConfig: {
+          thinkingBudget: 0
+        }
       }
     }
 
@@ -436,7 +439,7 @@ export async function POST(request: NextRequest) {
       
       // Fetch in batches if too many IDs
       let allKeywords: { id: string; keyword: string }[] = []
-      const BATCH_SIZE = 100
+    const BATCH_SIZE = 40
       
       for (let i = 0; i < keywordIds.length; i += BATCH_SIZE) {
         const batch = keywordIds.slice(i, i + BATCH_SIZE)
