@@ -164,7 +164,7 @@ Devuelve EXACTAMENTE este JSON:
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 15000,
+        maxOutputTokens: 20000,
         responseMimeType: 'application/json'
       }
     }
@@ -340,7 +340,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const keywordTexts = keywords.slice(0, 300).map(k => k.keyword)
+    const keywordTexts = keywords.slice(0, 150).map(k => k.keyword)
     
     console.log(`Analyzing ${keywordTexts.length} keywords for SILO proposal...`)
     
@@ -350,7 +350,7 @@ export async function POST(request: NextRequest) {
       success: true,
       keywordCount: keywords.length,
       keywordsAnalyzed: keywordTexts.length,
-      keywords: keywords.slice(0, 300).map(k => ({ id: k.id, keyword: k.keyword })),
+      keywords: keywords.slice(0, 150).map(k => ({ id: k.id, keyword: k.keyword })),
       proposal: proposal.silos,
       intentions: proposal.intentions,
       existingSilosUsed: useExistingSilos && existingSilos.length > 0,
