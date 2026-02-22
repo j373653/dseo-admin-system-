@@ -63,7 +63,9 @@ interface SiloProposal {
     name: string
     pages: {
       main_keyword_id: string
+      main_keyword?: string
       secondary_keywords_ids: string[]
+      secondary_keywords?: string[]
       type: 'service' | 'blog' | 'landing'
       is_pillar: boolean
       intent: 'informational' | 'transactional' | 'commercial'
@@ -174,9 +176,9 @@ Para CADA página, especifica:
 - keywords muy similares → agrupa en la misma página
 
 ### FORMATO DE SALIDA JSON:
-- Para cada página, usa el ID de la keyword (no el texto)
-- Formato: "main_keyword_id": "id-de-la-keyword"
-- secondary_keywords_ids: array de IDs
+- Para cada página, incluye TANTO el ID como el texto de la keyword (para validación cruzada)
+- Formato: "main_keyword_id": "uuid-aqui", "main_keyword": "texto de la keyword"
+- secondary_keywords_ids: array de IDs, secondary_keywords: array de textos
 ${`{
   "silos": [
     {
@@ -187,7 +189,9 @@ ${`{
           "pages": [
             {
               "main_keyword_id": "uuid-aqui",
+              "main_keyword": "desarrollo wordpress madrid",
               "secondary_keywords_ids": ["uuid-1", "uuid-2"],
+              "secondary_keywords": ["keyword sec 1", "keyword sec 2"],
               "type": "service",
               "is_pillar": true,
               "intent": "transactional"
@@ -339,31 +343,64 @@ ${`{
         for (const cat of silo.categories) {
           const convertedPages = []
           for (const page of cat.pages) {
-            // Validar que el ID existe
-            if (!validKeywordIds.has(page.main_keyword_id)) {
-              validationErrors.push(`Main keyword ID "${page.main_keyword_id}" no válido`)
-              continue
+            // OPCIÓN A: Matching híbrido - intentar ID primero, luego por texto
+            let keywordId = page.main_keyword_id
+            let mainKeywordText = page.main_keyword || ''
+            
+            // Si el ID no es válido, buscar por texto
+            if (!keywordId || !validKeywordIds.has(keywordId)) {
+              if (mainKeywordText) {
+                const match = keywords.find(k => 
+                  k.keyword.toLowerCase().trim() === mainKeywordText.toLowerCase().trim()
+                )
+                if (match) {
+                  keywordId = match.id
+                  console.log(`Keyword match por texto: "${mainKeywordText}" → ID: ${keywordId}`)
+                } else {
+                  validationErrors.push(`Keyword "${mainKeywordText}" no encontrada en la lista`)
+                  continue
+                }
+              } else {
+                validationErrors.push(`Main keyword ID "${keywordId}" no válido`)
+                continue
+              }
             }
             
-            // Validar secondary keywords IDs
-            const validSecondaryIds = (page.secondary_keywords_ids || []).filter(
-              id => validKeywordIds.has(id)
-            )
+            // Validar secondary keywords IDs - también intentar matching por texto
+            const secondaryIds: string[] = []
+            const secondaryTexts = page.secondary_keywords || []
+            const secondaryIdTexts = page.secondary_keywords_ids || []
+            
+            // Por cada secondary, primero intentar por ID, luego por texto
+            for (const secId of secondaryIdTexts) {
+              if (validKeywordIds.has(secId)) {
+                secondaryIds.push(secId)
+              }
+            }
+            // Buscar por texto los que no se encontraron por ID
+            for (const secText of secondaryTexts) {
+              const match = keywords.find(k => 
+                k.keyword.toLowerCase().trim() === secText.toLowerCase().trim()
+              )
+              if (match && !secondaryIds.includes(match.id)) {
+                secondaryIds.push(match.id)
+              }
+            }
             
             // Obtener el texto de la keyword principal para intenciones
-            const mainKw = keywords.find(k => k.id === page.main_keyword_id)
+            const mainKw = keywords.find(k => k.id === keywordId)
             if (mainKw) {
               intentions[mainKw.keyword] = page.intent || 'informational'
             }
             
             convertedPages.push({
-              main_keyword: mainKw?.keyword || '',
-              main_keyword_id: page.main_keyword_id,
-              secondary_keywords: validSecondaryIds.map(id => {
+              main_keyword: mainKw?.keyword || mainKeywordText || '',
+              main_keyword_id: keywordId,
+              secondary_keywords: secondaryIds.map(id => {
                 const kw = keywords.find(k => k.id === id)
                 return kw?.keyword || ''
               }).filter(k => k),
-              secondary_keywords_ids: validSecondaryIds,
+              secondary_keywords_ids: secondaryIds,
               type: page.type,
               is_pillar: page.is_pillar,
               intent: page.intent
