@@ -116,8 +116,14 @@ export default function SilosPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-3">Silos</h2>
-      <Link href="/admin/keywords/import"><button className="px-3 py-1 bg-indigo-600 text-white rounded mb-4">Importar Keywords</button></Link>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Estructura SILO</h2>
+        <Link href="/admin/keywords/pro          <button classposal">
+Name="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            + Nueva Propuesta
+          </button>
+        </Link>
+      </div>
       
       <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
         <h3 className="font-semibold mb-2">Crear nuevo Silo</h3>
@@ -129,43 +135,65 @@ export default function SilosPage() {
       </div>
 
       {!silos || silos.length === 0 ? (
-        <div className="text-gray-500">No hay silos creados. Crea uno arriba.</div>
+        <div className="text-gray-500 text-center py-12">
+          <div className="text-lg mb-2">No hay silos creados</div>
+          <p>Crea uno arriba o ve a "Nueva Propuesta" para generar uno con IA</p>
+        </div>
       ) : (
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="space-y-6">
         {silos.map((s) => (
-          <div key={s.id} className="border rounded-lg p-4">
-            <div className="font-semibold text-lg">{s.name}</div>
-            {s.description && <div className="text-sm text-gray-600 mb-2">{s.description}</div>}
-            <div className="mb-2">
-              <strong>Crear Categoría</strong>
-              <div className="flex space-x-2 mt-2">
-                <select value={selectedSiloId ?? ''} onChange={(e) => setSelectedSiloId(e.target.value)} className="border rounded px-2 py-1">
-                  <option value="">Selecciona silo</option>
-                  {silos.map((so) => (
-                    <option key={so.id} value={so.id}>{so.name}</option>
-                  ))}
-                </select>
-                <input placeholder="Nombre categoría" value={catNameInput} onChange={e => setCatNameInput(e.target.value)} className="border rounded px-2 py-1" />
-                <button onClick={createCategory} className="px-3 py-1 bg-green-600 text-white rounded">Crear</button>
-              </div>
+          <div key={s.id} className="border rounded-lg p-4 bg-white shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="text-xl font-bold text-indigo-700">{s.name}</div>
+              {s.description && <span className="text-sm text-gray-500">- {s.description}</span>}
+              <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded">
+                {s.categories?.length || 0} categorías
+              </span>
             </div>
-            {s.categories?.length ? (
-              <div className="mt-2 text-sm text-gray-700">Categorías: {s.categories.map(c => c.name).join(', ')}</div>
-            ) : null}
-            <div className="mt-3">
-              <strong>Crear Página (para la Categoría actual)</strong>
-              <div className="grid grid-cols-1 gap-2 mt-2">
-                <div className="flex space-x-2 items-center">
-                  <input placeholder="Main keyword" value={pageMainInput} onChange={e => setPageMainInput(e.target.value)} className="border rounded px-2 py-1" />
-                  <input placeholder="URLTarget" value={pageUrlInput} onChange={e => setPageUrlInput(e.target.value)} className="border rounded px-2 py-1" />
-                  <label className="flex items-center space-x-1 text-sm"><input type="checkbox" checked={pageIsPillar} onChange={e => setPageIsPillar(e.target.checked)} /> Pillar</label>
-                  <select value={pageContentType} onChange={e => setPageContentType(e.target.value)} className="border rounded px-2 py-1">
-                    <option value="blog">Blog</option>
-                    <option value="landing">Landing</option>
-                    <option value="service">Service</option>
-                  </select>
-                  <button onClick={createPage} className="px-3 py-1 bg-blue-600 text-white rounded">Crear página</button>
-                </div>
+            
+            {s.categories && s.categories.length > 0 && (
+              <div className="ml-4 space-y-3">
+                {s.categories.map((c) => (
+                  <div key={c.id} className="border-l-4 border-green-500 pl-4 py-2">
+                    <div className="font-semibold text-green-700">{c.name}</div>
+                    {c.description && <div className="text-sm text-gray-500 mb-2">{c.description}</div>}
+                    
+                    {c.pages && c.pages.length > 0 && (
+                      <div className="ml-4 mt-2 space-y-2">
+                        {c.pages.map((p) => (
+                          <div key={p.id} className={`p-2 rounded ${p.is_pillar ? 'bg-yellow-50 border border-yellow-300' : 'bg-gray-50'}`}>
+                            <div className="flex items-center gap-2">
+                              {p.is_pillar && <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded">PILLAR</span>}
+                              <span className={`text-xs px-1 rounded ${p.content_type_target === 'service' ? 'bg-blue-100 text-blue-800' : p.content_type_target === 'landing' ? 'bg-purple-100 text-purple-800' : 'bg-gray-200 text-gray-800'}`}>
+                                {p.content_type_target}
+                              </span>
+                            </div>
+                            <div className="font-medium">{p.main_keyword}</div>
+                            {p.url_target && <div className="text-xs text-blue-600">{p.url_target}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="mt-4 pt-4 border-t">
+              <div className="text-sm text-gray-600 mb-2"><strong>Crear Categoría en este Silo</strong></div>
+              <div className="flex space-x-2">
+                <input 
+                  placeholder="Nombre categoría" 
+                  value={selectedSiloId === s.id ? catNameInput : ''} 
+                  onChange={e => { setSelectedSiloId(s.id); setCatNameInput(e.target.value); }} 
+                  className="border rounded px-2 py-1 flex-1" 
+                />
+                <button 
+                  onClick={() => { setSelectedSiloId(s.id); createCategory(); }} 
+                  className="px-3 py-1 bg-green-600 text-white rounded"
+                >
+                  Crear
+                </button>
               </div>
             </div>
           </div>
