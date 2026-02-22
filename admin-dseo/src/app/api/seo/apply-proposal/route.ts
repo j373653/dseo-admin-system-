@@ -43,16 +43,6 @@ export async function POST(request: NextRequest) {
       errors: [] as string[]
     }
 
-    const results = {
-      silosCreated: 0,
-      categoriesCreated: 0,
-      pagesCreated: 0,
-      keywordsClustered: 0,
-      keywordsDiscarded: 0,
-      keywordsPending: 0,
-      errors: [] as string[]
-    }
-
     await supabase.from('d_seo_admin_raw_keywords').update({ status: 'pending' })
 
     for (const siloData of proposal.silos) {
