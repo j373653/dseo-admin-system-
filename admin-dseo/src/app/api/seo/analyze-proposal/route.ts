@@ -214,7 +214,7 @@ Devuelve EXACTAMENTE este JSON:
     if (attempt <= MAX_RETRIES) {
       console.log(`Retrying SILO analysis (attempt ${attempt + 1})...`)
       await new Promise(resolve => setTimeout(resolve, 2000))
-      return analyzeSilosWithGemini(keywords, apiKey, existingSilos, attempt + 1)
+      return analyzeSilosWithGemini(keywords, apiKey, existingSilos, context, attempt + 1)
     }
     throw error
   }
