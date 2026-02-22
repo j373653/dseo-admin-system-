@@ -555,7 +555,7 @@ export async function POST(request: NextRequest) {
             } else {
               // Merge pages into existing category
               for (const page of cat.pages) {
-                if (!existingCat.pages.find((p: any) => p.main_keyword.toLowerCase() === page.main_keyword.toLowerCase())) {
+                if (!existingCat.pages.find((p: any) => p.main_keyword_id === page.main_keyword_id)) {
                   existingCat.pages.push(page)
                 }
               }
