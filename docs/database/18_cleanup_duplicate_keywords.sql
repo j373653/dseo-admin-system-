@@ -9,11 +9,12 @@ SELECT 'Before cleanup:' as status;
 SELECT COUNT(*) as total_keywords FROM d_seo_admin_raw_keywords;
 SELECT COUNT(DISTINCT LOWER(keyword)) as unique_keywords FROM d_seo_admin_raw_keywords;
 
--- Step 2: Create a temporary table with unique keywords (keeping the one with highest search_volume or first id)
+-- Step 2: Create a temporary table with unique keywords (keeping the first id for each keyword)
 CREATE TEMP TABLE unique_keywords AS
-SELECT MIN(id) as id, keyword, search_volume, difficulty, cpc, source, status, intent, raw_data, discarded_at, discarded_reason
+SELECT DISTINCT ON (LOWER(keyword)) 
+  id, keyword, search_volume, difficulty, cpc, source, status, intent, raw_data, discarded_at, discarded_reason
 FROM d_seo_admin_raw_keywords
-GROUP BY LOWER(keyword);
+ORDER BY LOWER(keyword), id;
 
 -- Step 3: Delete all keywords and re-insert unique ones
 TRUNCATE TABLE d_seo_admin_raw_keywords CASCADE;
