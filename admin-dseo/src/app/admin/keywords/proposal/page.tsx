@@ -51,7 +51,35 @@ export default function ProposalPage() {
 
   useEffect(() => {
     loadPendingKeywords()
+    loadSavedProposal()
   }, [])
+
+  const loadSavedProposal = () => {
+    const saved = localStorage.getItem('dseo_last_proposal')
+    if (saved) {
+      try {
+        const data = JSON.parse(saved)
+        if (data.proposal && data.proposal.length > 0) {
+          setProposal(data.proposal)
+          setIntentions(data.intentions || {})
+          setDiscardSelected(data.discardSelected || [])
+          setStep(3)
+        }
+      } catch (e) {
+        console.error('Error loading saved proposal:', e)
+      }
+    }
+  }
+
+  const saveProposal = () => {
+    const data = {
+      proposal,
+      intentions,
+      discardSelected,
+      savedAt: new Date().toISOString()
+    }
+    localStorage.setItem('dseo_last_proposal', JSON.stringify(data))
+  }
 
   const loadPendingKeywords = async () => {
     try {
@@ -131,6 +159,7 @@ export default function ProposalPage() {
         setProposal(data.proposal)
         setIntentions(data.intentions || {})
         setStep(3)
+        saveProposal()
       } else {
         setError(data.error + (data.debug ? ` (debug: ${JSON.stringify(data.debug)}` : ''))
       }
@@ -167,6 +196,7 @@ export default function ProposalPage() {
       if (data.success) {
         setSuccess(`Propuesta aplicada: ${data.results.keywordsClustered} keywords clusterizadas, ${data.results.keywordsDiscarded} descartadas`)
         setStep(4)
+        localStorage.removeItem('dseo_last_proposal')
       } else {
         setError(data.error || 'Error al aplicar')
       }
@@ -272,13 +302,23 @@ export default function ProposalPage() {
               <p className="text-gray-600 mb-4">
                 Se analizarán {keywords.length} keywords pendientes para verificar que coinciden con la temática de d-seo.es
               </p>
-              <button
-                onClick={handleFilterByTopic}
-                disabled={loading || keywords.length === 0}
-                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {loading ? 'Analizando...' : 'Filtrar por Temática'}
-              </button>
+              <div className="flex gap-4">
+                <button
+                  onClick={handleFilterByTopic}
+                  disabled={loading || keywords.length === 0}
+                  className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Analizando...' : 'Filtrar por Temática'}
+                </button>
+                {localStorage.getItem('dseo_last_proposal') && (
+                  <button
+                    onClick={loadSavedProposal}
+                    className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+                  >
+                    Re-aplicar última propuesta
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

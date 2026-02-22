@@ -113,18 +113,20 @@ ${sitemapUrls || 'Sin sitemap disponible'}`
 
   const prompt = `${companyContext}
 
-PALABRAS CLAVE A ANALIZAR:
+PALABRAS CLAVE A ANALIZAR - SOLO ESTAS, NO INVENTES O AGREGUES OTRAS:
 ${keywordList}
 
 ${existingSilosBlock}
 
 Eres un experto en SEO. Analiza las keywords y devuelve una PROPUESTA DE ESTRUCTURA SILO (NO aplica nada, solo propone).
 
-INSTRUCCIONES ESPECIALES:
-1. Descarta keywords que coincidan con: ${discardTopics}
-2. NO propongas páginas que ya existen en el sitemap
-3. Evita cannibalización (no repetir keywords similares)
-4. Prioriza servicios que faltan en el sitemap
+INSTRUCCIONES OBLIGATORIAS:
+1. SOLO usa las keywords de la lista "PALABRAS CLAVE A ANALIZAR" - NO inventes, NO agregues otras keywords
+2. Las secondary_keywords DEBEN ser keywords de la lista proporcionada
+3. Descarta keywords que coincidan con: ${discardTopics}
+4. NO propongas páginas que ya existen en el sitemap
+5. Evita cannibalización (no repetir keywords similares)
+6. Prioriza servicios que faltan en el sitemap
 
 La estructura SILO propuesta debe ser:
 - SILO (Tema principal): Grupo de categoría de nivel superior
@@ -132,8 +134,8 @@ La estructura SILO propuesta debe ser:
 - PÁGINA: Página de contenido específica
 
 Para CADA página, especifica:
-- main_keyword: Keyword principal para la página
-- secondary_keywords: Keywords secundarias (LSI) para esa página
+- main_keyword: Keyword principal (DEBE ser una de las keywords proporcionadas)
+- secondary_keywords: Keywords secundarias (SOLO de la lista proporcionada)
 - type: "service" (página de servicio), "blog" (artículo), "landing" (página de aterrizaje)
 - is_pillar: true si es la página más importante de la categoría
 - intent: "informational" (busca información), "transactional" (quiere comprar/contratar), "commercial" (compara/decide)
@@ -146,6 +148,7 @@ IMPORTANTE:
 - keywords "informational" → tipo "blog"
 - is_pillar = true solo para la página más importante de cada categoría
 - keywords muy similares (duplicados semánticos) -> agrupa en la misma página
+- NO INVENTES keywords - usa EXACTAMENTE las de la lista
 
 Devuelve EXACTAMENTE este JSON:
 
