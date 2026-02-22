@@ -181,20 +181,21 @@ export async function POST(request: NextRequest) {
 
                 for (const kw of allPageKeywords) {
                   const kwLower = kw.toLowerCase().trim()
-                  
+                   
                   console.log('Looking for keyword:', kwLower)
-                  
+                   
                   const { data: kwData, error: kwError } = await supabase
                     .from('d_seo_admin_raw_keywords')
                     .select('id, keyword, status')
                     .ilike('keyword', kwLower)
                     .in('status', ['pending', 'clustered'])
+                    .limit(1)
                     .maybeSingle()
 
                   if (kwError) {
                     console.error('Keyword search error:', kwError)
                   }
-                  
+                   
                   console.log('Found keyword:', kwData)
 
                   if (kwData && pageId) {

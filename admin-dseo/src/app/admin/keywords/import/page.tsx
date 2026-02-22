@@ -169,7 +169,7 @@ export default function ImportKeywordsPage() {
             .from('d_seo_admin_raw_keywords')
             .select('id, status')
             .ilike('keyword', keywordText)
-            .single()
+            .maybeSingle()
 
           if (existing) {
             if (existing.status === 'discarded') {
