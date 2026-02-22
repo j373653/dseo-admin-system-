@@ -196,32 +196,44 @@ export async function POST(request: NextRequest) {
   try {
     const { keywordIds, useExistingSilos } = await request.json()
     
+    console.log('=== API DEBUG ===')
+    console.log('keywordIds received:', keywordIds?.length, keywordIds)
+    console.log('useExistingSilos:', useExistingSilos)
+    
     const apiKey = process.env.GOOGLE_AI_API_KEY
     if (!apiKey) {
+      console.log('ERROR: No API key')
       return NextResponse.json({ error: 'API key no configurada' }, { status: 500 })
     }
 
     let keywords: { id: string; keyword: string }[] = []
     
     if (keywordIds && keywordIds.length > 0) {
-      const { data } = await supabase
+      console.log('Fetching keywords with IDs...')
+      const { data, error } = await supabase
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .in('id', keywordIds)
         .eq('status', 'pending')
       
+      console.log('Query result - data:', data?.length, 'error:', error)
       keywords = data || []
     } else {
-      const { data } = await supabase
+      console.log('Fetching all pending keywords...')
+      const { data, error } = await supabase
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .eq('status', 'pending')
         .limit(500)
       
+      console.log('Query result - data:', data?.length, 'error:', error)
       keywords = data || []
     }
 
+    console.log('Keywords found:', keywords.length)
+    
     if (keywords.length === 0) {
+      console.log('ERROR: No keywords found')
       return NextResponse.json({ error: 'No hay keywords pendientes para analizar' }, { status: 400 })
     }
 
