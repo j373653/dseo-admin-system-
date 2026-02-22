@@ -17,11 +17,6 @@ export async function GET() {
         keyword:raw_keywords(id, keyword, search_volume, intent)
       `)
     
-    // Get all pages for easy lookup
-    const { data: allPages } = await supabaseClient
-      .from('d_seo_admin_pages')
-      .select('id, main_keyword, url_target, is_pillar, content_type_target, category_id')
-    
     // Create a map of page_id -> keywords
     const pageKeywordsMap: { [pageId: string]: any[] } = {}
     
@@ -31,12 +26,21 @@ export async function GET() {
         if (!pageKeywordsMap[pageId]) {
           pageKeywordsMap[pageId] = []
         }
-        if (a.keyword) {
+        const kw = a.keyword as any
+        if (kw && Array.isArray(kw) && kw.length > 0) {
+          const k = kw[0]
           pageKeywordsMap[pageId].push({
-            id: a.keyword.id,
-            keyword: a.keyword.keyword,
-            search_volume: a.keyword.search_volume,
-            intent: a.keyword.intent
+            id: k.id,
+            keyword: k.keyword,
+            search_volume: k.search_volume,
+            intent: k.intent
+          })
+        } else if (kw && !Array.isArray(kw)) {
+          pageKeywordsMap[pageId].push({
+            id: kw.id,
+            keyword: kw.keyword,
+            search_volume: kw.search_volume,
+            intent: kw.intent
           })
         }
       }
