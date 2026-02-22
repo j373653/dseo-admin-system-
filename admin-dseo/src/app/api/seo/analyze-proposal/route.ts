@@ -220,17 +220,24 @@ ${`{
   }
 }`
 
+  // Configurar thinking solo para Flash (Pro no soporta disable)
+  const generationConfig: any = {
+    temperature: aiParams.temperature ?? 0.3,
+    maxOutputTokens: aiParams.maxTokens ?? 20000,
+    responseMimeType: 'application/json'
+  }
+  
+  // Solo Flash puede usar thinking_budget: 0
+  if (aiModel.includes('flash')) {
+    generationConfig.thinkingConfig = {
+      thinkingBudget: 0
+    }
+  }
+
   try {
     const requestBody = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: aiParams.temperature ?? 0.3,
-        maxOutputTokens: aiParams.maxTokens ?? 20000,
-        responseMimeType: 'application/json',
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
-      }
+      generationConfig
     }
 
     const response = await fetch(
@@ -563,7 +570,7 @@ export async function POST(request: NextRequest) {
     }
 
     const aiConfig = await getAIConfig()
-    const siloConfig = aiConfig?.silo || { model: 'gemini-2.5-flash', parameters: { maxTokens: 20000, temperature: 0.3 } }
+    const siloConfig = aiConfig?.silo || { model: 'gemini-2.5-pro', parameters: { maxTokens: 20000, temperature: 0.3 } }
     const aiModel = siloConfig.model
     const aiParams = siloConfig.parameters || {}
 
