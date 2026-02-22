@@ -475,7 +475,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const keywordTexts = keywords.slice(0, 1000).map(k => k.keyword)
+    const keywordTexts = keywords.slice(0, 400).map(k => k.keyword)
     
     const aiConfig = await getAIConfig()
     const siloConfig = aiConfig?.silo || { model: 'gemini-2.5-flash', parameters: { maxTokens: 20000, temperature: 0.3 } }
@@ -490,7 +490,7 @@ export async function POST(request: NextRequest) {
       success: true,
       keywordCount: keywords.length,
       keywordsAnalyzed: keywordTexts.length,
-      keywords: keywords.slice(0, 1000).map(k => ({ id: k.id, keyword: k.keyword })),
+      keywords: keywords.slice(0, 400).map(k => ({ id: k.id, keyword: k.keyword })),
       proposal: proposal.silos,
       intentions: proposal.intentions,
       validationErrors: proposal.validationErrors,
