@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
-    const limit = parseInt(searchParams.get('limit') || '500')
+    const limit = parseInt(searchParams.get('limit') || '2000')
 
     let query = supabase
       .from('d_seo_admin_raw_keywords')
