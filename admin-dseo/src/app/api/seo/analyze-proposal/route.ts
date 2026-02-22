@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
         .from('d_seo_admin_raw_keywords')
         .select('id, keyword')
         .eq('status', 'pending')
-        .limit(500)
+        .limit(1000)
       
       console.log('Query result - data:', data?.length, 'error:', error)
       keywords = data || []
@@ -475,28 +475,75 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const keywordTexts = keywords.slice(0, 400).map(k => k.keyword)
-    
     const aiConfig = await getAIConfig()
     const siloConfig = aiConfig?.silo || { model: 'gemini-2.5-flash', parameters: { maxTokens: 20000, temperature: 0.3 } }
     const aiModel = siloConfig.model
     const aiParams = siloConfig.parameters || {}
+
+    const BATCH_SIZE = 300
+    const allSilos: SiloProposal[] = []
+    const allIntentions: { [key: string]: string } = {}
+    const allValidationErrors: string[] = []
+    const processedKeywordIds: string[] = []
     
-    console.log(`Analyzing ${keywordTexts.length} keywords for SILO proposal with model: ${aiModel}`)
-    
-    const proposal = await analyzeSilosWithGemini(keywordTexts, apiKey, existingSilos, context || {}, aiModel, aiParams)
+    // Process keywords in batches
+    for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+      const batchKeywords = keywords.slice(i, i + BATCH_SIZE)
+      const keywordTexts = batchKeywords.map(k => k.keyword)
+      processedKeywordIds.push(...batchKeywords.map(k => k.id))
+      
+      console.log(`Analyzing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${keywordTexts.length} keywords with model: ${aiModel}`)
+      
+      // Use existing silos from previous batches to avoid duplicates
+      const proposal = await analyzeSilosWithGemini(
+        keywordTexts, 
+        apiKey, 
+        useExistingSilos ? existingSilos : allSilos, 
+        context || {}, 
+        aiModel, 
+        aiParams
+      )
+      
+      // Merge results, avoiding duplicate silo names
+      for (const silo of proposal.silos) {
+        const existingSilo = allSilos.find(s => s.name.toLowerCase() === silo.name.toLowerCase())
+        if (!existingSilo) {
+          allSilos.push(silo)
+        } else {
+          // Merge categories into existing silo
+          for (const cat of silo.categories) {
+            const existingCat = existingSilo.categories.find(c => c.name.toLowerCase() === cat.name.toLowerCase())
+            if (!existingCat) {
+              existingSilo.categories.push(cat)
+            } else {
+              // Merge pages into existing category
+              for (const page of cat.pages) {
+                if (!existingCat.pages.find(p => p.main_keyword.toLowerCase() === page.main_keyword.toLowerCase())) {
+                  existingCat.pages.push(page)
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Merge intentions and errors
+      Object.assign(allIntentions, proposal.intentions)
+      allValidationErrors.push(...proposal.validationErrors)
+    }
 
     return NextResponse.json({
       success: true,
       keywordCount: keywords.length,
-      keywordsAnalyzed: keywordTexts.length,
-      keywords: keywords.slice(0, 400).map(k => ({ id: k.id, keyword: k.keyword })),
-      proposal: proposal.silos,
-      intentions: proposal.intentions,
-      validationErrors: proposal.validationErrors,
+      keywordsAnalyzed: processedKeywordIds.length,
+      keywords: processedKeywordIds.map((id, i) => ({ id, keyword: keywords[i].keyword })),
+      proposal: allSilos,
+      intentions: allIntentions,
+      validationErrors: allValidationErrors,
       existingSilosUsed: useExistingSilos && existingSilos.length > 0,
       existingSilosCount: existingSilos.length,
-      contextUsed: !!context
+      contextUsed: !!context,
+      batchesProcessed: Math.ceil(keywords.length / BATCH_SIZE)
     })
 
   } catch (error: any) {
