@@ -158,11 +158,18 @@ export async function POST(request: NextRequest) {
                     await supabase
                       .from('d_seo_admin_raw_keywords')
                       .update({ 
-                        cluster_id: pageId,
                         status: 'clustered',
                         intent: pageData.intent || 'informational'
                       })
                       .eq('id', kwData.id)
+
+                    await supabase
+                      .from('d_seo_admin_keyword_assignments')
+                      .upsert({
+                        keyword_id: kwData.id,
+                        page_id: pageId,
+                        assigned_at: new Date().toISOString()
+                      }, { onConflict: 'keyword_id,page_id' })
 
                     results.keywordsClustered++
                   }

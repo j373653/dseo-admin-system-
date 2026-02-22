@@ -7,7 +7,7 @@ type SiloCategory = {
   id: string
   name: string
   description?: string
-  pages: { id: string; main_keyword: string; url_target: string; is_pillar: boolean; content_type_target: string }[]
+  pages: { id: string; main_keyword: string; url_target: string; is_pillar: boolean; content_type_target: string; keywords?: { id: string; keyword: string; search_volume: number; intent: string }[] }[]
 }
 
 type Silo = {
@@ -49,7 +49,8 @@ export default function SilosPage() {
             main_keyword: p.main_keyword,
             url_target: p.url_target,
             is_pillar: p.is_pillar,
-            content_type_target: p.content_type_target
+            content_type_target: p.content_type_target,
+            keywords: p.keywords || []
           }))
         }))
       }))
@@ -158,22 +159,35 @@ export default function SilosPage() {
                     <div className="font-semibold text-green-700">{c.name}</div>
                     {c.description && <div className="text-sm text-gray-500 mb-2">{c.description}</div>}
                     
-                    {c.pages && c.pages.length > 0 && (
-                      <div className="ml-4 mt-2 space-y-2">
-                        {c.pages.map((p) => (
-                          <div key={p.id} className={`p-2 rounded ${p.is_pillar ? 'bg-yellow-50 border border-yellow-300' : 'bg-gray-50'}`}>
-                            <div className="flex items-center gap-2">
-                              {p.is_pillar && <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded">PILLAR</span>}
-                              <span className={`text-xs px-1 rounded ${p.content_type_target === 'service' ? 'bg-blue-100 text-blue-800' : p.content_type_target === 'landing' ? 'bg-purple-100 text-purple-800' : 'bg-gray-200 text-gray-800'}`}>
-                                {p.content_type_target}
-                              </span>
-                            </div>
-                            <div className="font-medium">{p.main_keyword}</div>
-                            {p.url_target && <div className="text-xs text-blue-600">{p.url_target}</div>}
+                        {c.pages && c.pages.length > 0 && (
+                          <div className="ml-4 mt-2 space-y-2">
+                            {c.pages.map((p) => (
+                              <div key={p.id} className={`p-2 rounded ${p.is_pillar ? 'bg-yellow-50 border border-yellow-300' : 'bg-gray-50'}`}>
+                                <div className="flex items-center gap-2">
+                                  {p.is_pillar && <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded">PILLAR</span>}
+                                  <span className={`text-xs px-1 rounded ${p.content_type_target === 'service' ? 'bg-blue-100 text-blue-800' : p.content_type_target === 'landing' ? 'bg-purple-100 text-purple-800' : 'bg-gray-200 text-gray-800'}`}>
+                                    {p.content_type_target}
+                                  </span>
+                                </div>
+                                <div className="font-medium">{p.main_keyword}</div>
+                                {p.url_target && <div className="text-xs text-blue-600">{p.url_target}</div>}
+                                {p.keywords && p.keywords.length > 0 && (
+                                  <div className="mt-2 pl-2 border-l-2 border-gray-300">
+                                    <div className="text-xs text-gray-500 mb-1">Keywords asignadas:</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {p.keywords.map((kw: any) => (
+                                        <span key={kw.id} className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">
+                                          {kw.keyword}
+                                          {kw.search_volume > 0 && <span className="text-gray-400 ml-1">({kw.search_volume})</span>}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        )}
                   </div>
                 ))}
               </div>
