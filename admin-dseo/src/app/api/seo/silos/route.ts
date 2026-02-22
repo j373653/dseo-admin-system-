@@ -5,17 +5,12 @@ import { supabaseClient } from '@/lib/supabase'
 // GET: fetch SILO hierarchy: Silos -> Categories -> Pages -> Keywords
 export async function GET() {
   try {
-    // Get all silos
     const { data: silos, error: silosError } = await supabaseClient.from('d_seo_admin_silos').select('id, name, description')
     
     if (silosError) {
-      console.error('Error fetching silos:', silosError)
       return NextResponse.json({ error: silosError.message }, { status: 500 })
     }
     
-    console.log('Silos found:', silos?.length || 0)
-    
-    // Get all keyword assignments with keyword data
     const { data: assignments } = await supabaseClient
       .from('d_seo_admin_keyword_assignments')
       .select(`
@@ -24,7 +19,6 @@ export async function GET() {
         keyword:raw_keywords(id, keyword, search_volume, intent)
       `)
     
-    // Create a map of page_id -> keywords
     const pageKeywordsMap: { [pageId: string]: any[] } = {}
     
     if (assignments) {
@@ -55,7 +49,6 @@ export async function GET() {
     
     const result: any[] = []
     const silosList = silos || []
-    console.log('Processing silos:', silosList.length)
     
     if (silosList.length > 0) {
       for (const silo of silosList) {
