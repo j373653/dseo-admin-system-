@@ -47,16 +47,18 @@ export async function POST(request: NextRequest) {
 
     for (const siloData of proposal.silos) {
       try {
+        console.log('Processing silo:', siloData.name)
+        
         const { data: silo, error: siloError } = await supabase
           .from('d_seo_admin_silos')
           .upsert({ 
-            name: siloData.name,
-            slug: slugify(siloData.name)
-          }, { onConflict: 'name' })
+            name: siloData.name
+          })
           .select()
           .single()
 
         if (siloError) {
+          console.error('Silo upsert error:', siloError)
           results.errors.push(`Error con silo ${siloData.name}: ${siloError.message}`)
           continue
         }
@@ -67,6 +69,10 @@ export async function POST(request: NextRequest) {
           .eq('name', siloData.name)
           .single()
 
+        if (existingSilo.error) {
+          console.error('Error finding silo:', existingSilo.error)
+        }
+
         if (existingSilo.data) {
           results.silosCreated++
           console.log('Silo created/updated:', siloData.name, existingSilo.data.id)
@@ -76,17 +82,19 @@ export async function POST(request: NextRequest) {
 
         for (const catData of (siloData.categories || [])) {
           try {
+            console.log('Processing category:', catData.name)
+            
             const { data: category, error: catError } = await supabase
               .from('d_seo_admin_categories')
               .upsert({
                 silo_id: siloId,
-                name: catData.name,
-                slug: slugify(catData.name)
-              }, { onConflict: 'silo_id,name' })
+                name: catData.name
+              })
               .select()
               .single()
 
             if (catError) {
+              console.error('Category upsert error:', catError)
               results.errors.push(`Error con categoría ${catData.name}: ${catError.message}`)
               continue
             }
@@ -106,6 +114,8 @@ export async function POST(request: NextRequest) {
 
             for (const pageData of (catData.pages || [])) {
               try {
+                console.log('Processing page:', pageData.main_keyword)
+                
                 const { data: page, error: pageError } = await supabase
                   .from('d_seo_admin_pages')
                   .upsert({
@@ -117,11 +127,12 @@ export async function POST(request: NextRequest) {
                     is_pillar: pageData.is_pillar || false,
                     content_type_target: pageData.type || 'blog',
                     title: pageData.main_keyword
-                  }, { onConflict: 'category_id,main_keyword' })
+                  })
                   .select()
                   .single()
 
                 if (pageError) {
+                  console.error('Page upsert error:', pageError)
                   results.errors.push(`Error con página ${pageData.main_keyword}: ${pageError.message}`)
                   continue
                 }
