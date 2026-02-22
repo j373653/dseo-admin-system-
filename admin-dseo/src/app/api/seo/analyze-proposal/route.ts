@@ -256,7 +256,7 @@ ${`{
       if (codeBlockMatch) {
         try {
           return JSON.parse(codeBlockMatch[1].trim())
-        } { /* continue */ catch (e) }
+        } catch (e) { /* continue */ }
       }
       
       // Método 2: Buscar desde primer { hasta último }
