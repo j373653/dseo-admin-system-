@@ -62,8 +62,8 @@ interface SiloProposal {
   categories: {
     name: string
     pages: {
-      main_keyword: string
-      secondary_keywords: string[]
+      main_keyword_id: string
+      secondary_keywords_ids: string[]
       type: 'service' | 'blog' | 'landing'
       is_pillar: boolean
       intent: 'informational' | 'transactional' | 'commercial'
@@ -72,7 +72,7 @@ interface SiloProposal {
 }
 
 async function analyzeSilosWithGemini(
-  keywords: string[],
+  keywords: { id: string; keyword: string }[],
   apiKey: string,
   existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = [],
   context: { theme?: string; services?: string[]; target_companies?: string[]; sitemap_urls?: string[]; discard_topics?: string[] } = {},
@@ -82,7 +82,11 @@ async function analyzeSilosWithGemini(
 ): Promise<{ silos: SiloProposal[]; intentions: { [key: string]: string }; validationErrors: string[] }> {
   const MAX_RETRIES = 2
   
-  const keywordList = keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')
+  // Create a map for quick ID lookup
+  const keywordMap = new Map(keywords.map(k => [k.keyword.toLowerCase().trim(), k.id]))
+  
+  // Format keywords with IDs for the prompt
+  const keywordList = keywords.map((k, i) => `ID:${k.id} → "${k.keyword}"`).join('\n')
   
   const existingSilosBlock = existingSilos.length > 0
     ? `EXISTING SILOS (para referencia - NO necesariamente usar estos):\n${
@@ -160,6 +164,9 @@ Para CADA página, especifica:
 - keywords muy similares → agrupa en la misma página
 
 ### FORMATO DE SALIDA JSON:
+- Para cada página, usa el ID de la keyword (no el texto)
+- Formato: "main_keyword_id": "id-de-la-keyword"
+- secondary_keywords_ids: array de IDs
 ${`{
   "silos": [
     {
@@ -169,8 +176,8 @@ ${`{
           "name": "WordPress",
           "pages": [
             {
-              "main_keyword": "desarrollo wordpress profesional",
-              "secondary_keywords": ["wordpress developer", "programador wp"],
+              "main_keyword_id": "uuid-aqui",
+              "secondary_keywords_ids": ["uuid-1", "uuid-2"],
               "type": "service",
               "is_pillar": true,
               "intent": "transactional"
@@ -283,68 +290,77 @@ ${`{
       throw new Error('Respuesta sin estructura de silos')
     }
 
-    // Validación post-IA: verificar que las keywords propuestas existen en la lista original
-    const keywordSet = new Set(keywords.map(k => k.toLowerCase().trim()))
+    // Validación post-IA: verificar que los IDs de keywords existen en la lista original
+    const validKeywordIds = new Set(keywords.map(k => k.id))
     const validationErrors: string[] = []
     
-    // Función para validar y limpiar keywords
-    const validateKeywords = (silos: SiloProposal[]): SiloProposal[] => {
-      return silos.map(silo => ({
-        ...silo,
-        categories: silo.categories.map(cat => ({
-          ...cat,
-          pages: cat.pages.map(page => {
-            // Validar main_keyword
-            const mainKwLower = page.main_keyword.toLowerCase().trim()
-            if (!keywordSet.has(mainKwLower)) {
-              validationErrors.push(`Main keyword "${page.main_keyword}" no está en la lista original`)
+    // Función para validar IDs y convertirlos a formato de salida
+    const validateAndConvert = (silos: SiloProposal[]): { silos: any[]; intentions: { [key: string]: string } } => {
+      const convertedSilos = []
+      const intentions: { [key: string]: string } = {}
+      
+      for (const silo of silos) {
+        const convertedCategories = []
+        for (const cat of silo.categories) {
+          const convertedPages = []
+          for (const page of cat.pages) {
+            // Validar que el ID existe
+            if (!validKeywordIds.has(page.main_keyword_id)) {
+              validationErrors.push(`Main keyword ID "${page.main_keyword_id}" no válido`)
+              continue
             }
             
-            // Normalizar secondary_keywords a array
-            let secondaryArr: string[] = []
-            if (Array.isArray(page.secondary_keywords)) {
-              secondaryArr = page.secondary_keywords
-            } else if (typeof page.secondary_keywords === 'string') {
-              secondaryArr = (page.secondary_keywords as string).split(',').map(k => k.trim())
-            }
-            
-            // Validar secondary_keywords - filtrar las que no existen
-            const validSecondary = secondaryArr.filter(
-              kw => keywordSet.has(kw.toLowerCase().trim())
+            // Validar secondary keywords IDs
+            const validSecondaryIds = (page.secondary_keywords_ids || []).filter(
+              id => validKeywordIds.has(id)
             )
             
-            // Si hay secondary keywords que no existen, registrarlas
-            secondaryArr.forEach(kw => {
-              if (!keywordSet.has(kw.toLowerCase().trim())) {
-                validationErrors.push(`Secondary keyword "${kw}" no está en la lista original`)
-              }
-            })
-            
-            return {
-              ...page,
-              secondary_keywords: validSecondary
+            // Obtener el texto de la keyword principal para intenciones
+            const mainKw = keywords.find(k => k.id === page.main_keyword_id)
+            if (mainKw) {
+              intentions[mainKw.keyword] = page.intent || 'informational'
             }
-          }).filter(page => {
-            const secondary = Array.isArray(page.secondary_keywords) ? page.secondary_keywords : []
-            return secondary.length > 0 || keywordSet.has(page.main_keyword.toLowerCase().trim())
+            
+            convertedPages.push({
+              main_keyword: mainKw?.keyword || '',
+              main_keyword_id: page.main_keyword_id,
+              secondary_keywords: validSecondaryIds.map(id => {
+                const kw = keywords.find(k => k.id === id)
+                return kw?.keyword || ''
+              }).filter(k => k),
+              secondary_keywords_ids: validSecondaryIds,
+              type: page.type,
+              is_pillar: page.is_pillar,
+              intent: page.intent
+            })
+          }
+convertedPages.length >          
+          if ( 0) {
+            convertedCategories.push({
+              name: cat.name,
+              pages: convertedPages
+            })
+          }
+        }
+        
+        if (convertedCategories.length > 0) {
+          convertedSilos.push({
+            name: silo.name,
+            categories: convertedCategories
           })
-        })).filter(cat => {
-          const pages = Array.isArray(cat.pages) ? cat.pages : []
-          return pages.length > 0
-        })
-      })).filter(silo => {
-        const categories = Array.isArray(silo.categories) ? silo.categories : []
-        return categories.length > 0
-      })
+        }
+      }
+      
+      return { silos: convertedSilos, intentions }
     }
 
-    const validatedSilos = validateKeywords(parsed.silos)
+    const { silos: validatedSilos, intentions } = validateAndConvert(parsed.silos)
     
     console.log('Validación de keywords:', validationErrors.length > 0 ? validationErrors.join(', ') : 'OK')
 
     return {
       silos: validatedSilos,
-      intentions: parsed.intentions || {},
+      intentions,
       validationErrors
     }
 
@@ -488,14 +504,13 @@ export async function POST(request: NextRequest) {
     // Process keywords in batches
     for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
       const batchKeywords = keywords.slice(i, i + BATCH_SIZE)
-      const keywordTexts = batchKeywords.map(k => k.keyword)
       processedKeywordIds.push(...batchKeywords.map(k => k.id))
       
-      console.log(`Analyzing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${keywordTexts.length} keywords with model: ${aiModel}`)
+      console.log(`Analyzing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batchKeywords.length} keywords with model: ${aiModel}`)
       
       // Use existing silos from previous batches to avoid duplicates
       const proposal = await analyzeSilosWithGemini(
-        keywordTexts, 
+        batchKeywords, 
         apiKey, 
         useExistingSilos ? existingSilos : allSilos, 
         context || {}, 

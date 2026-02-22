@@ -181,50 +181,35 @@ export async function POST(request: NextRequest) {
                   console.log('Created new page:', pageData.main_keyword, pageId)
                 }
 
-                const allPageKeywords = [
-                  pageData.main_keyword,
-                  ...(pageData.secondary_keywords || [])
-                ]
+                // Now use IDs directly instead of searching by text
+                const allKeywordIds = [
+                  pageData.main_keyword_id,
+                  ...(pageData.secondary_keywords_ids || [])
+                ].filter(Boolean)
 
-                console.log('Keywords to assign:', allPageKeywords, 'to page:', pageId)
+                console.log('Keyword IDs to assign:', allKeywordIds, 'to page:', pageId)
 
-                for (const kw of allPageKeywords) {
-                  const kwNormalized = normalizeForSearch(kw)
-                   
-                  console.log('Looking for keyword:', kw, '-> normalized:', kwNormalized)
+                for (const keywordId of allKeywordIds) {
+                  console.log('Processing keyword ID:', keywordId)
                   
-                  let kwData = null
-                  let searchMethod = ''
-                  
-                  // First try: exact match (normalized)
-                  const { data: exactMatch } = await supabase
-                    .from('d_seo_admin_raw_keywords')
-                    .select('id, keyword, status')
-                    .ilike('keyword', kwNormalized)
-                    .in('status', ['pending', 'clustered'])
-                    .limit(1)
-                    .maybeSingle()
-                  
-                  if (exactMatch) {
-                    kwData = exactMatch
-                    searchMethod = 'exact'
-                  } else {
-                    // Second try: partial match with normalized text
-                    const { data: partialMatch } = await supabase
-                      .from('d_seo_admin_raw_keywords')
-                      .select('id, keyword, status')
-                      .ilike('keyword', `%${kwNormalized}%`)
-                      .in('status', ['pending', 'clustered'])
-                      .limit(1)
-                      .maybeSingle()
-                    
-                    if (partialMatch) {
-                      kwData = partialMatch
-                      searchMethod = 'partial'
-                    }
+                  if (!keywordId || !pageId) {
+                    console.log('Skipping - missing keywordId or pageId')
+                    continue
                   }
                   
-                  console.log('Found keyword:', kwData, 'via:', searchMethod)
+                  // Verify keyword exists and get current status
+                  const { data: kwData, error: kwError } = await supabase
+                    .from('d_seo_admin_raw_keywords')
+                    .select('id, keyword, status')
+                    .eq('id', keywordId)
+                    .maybeSingle()
+
+                  if (kwError) {
+                    console.error('Keyword fetch error:', kwError)
+                    continue
+                  }
+                  
+                  console.log('Found keyword:', kwData)
 
                   if (kwData && pageId) {
                     await supabase
@@ -244,9 +229,9 @@ export async function POST(request: NextRequest) {
                       }, { onConflict: 'keyword_id,page_id' })
 
                     results.keywordsClustered++
-                    console.log('Keyword assigned:', kw, 'to page:', pageId)
+                    console.log('Keyword assigned via ID:', keywordId, 'to page:', pageId)
                   } else {
-                    console.log('Keyword NOT found or pageId is null. kwData:', kwData, 'pageId:', pageId)
+                    console.log('Keyword NOT found. keywordId:', keywordId, 'pageId:', pageId)
                   }
                 }
 
