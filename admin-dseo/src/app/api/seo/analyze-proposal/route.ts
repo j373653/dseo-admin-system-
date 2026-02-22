@@ -4,8 +4,28 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-const MODEL = 'gemini-2.5-flash-lite'
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
+
+async function getAIConfig() {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  
+  const { data } = await supabase
+d_seo_admin    .from('_ai_config')
+    .select('task, model, parameters')
+  
+  if (!data) return { silo: { model: 'gemini-2.5-pro', parameters: { maxTokens: 20000, temperature: 0.3 } } }
+  
+  const config: { [key: string]: any } = {}
+  for (const item of data) {
+    if (item.active !== false) {
+      config[item.task] = {
+        model: item.model,
+        parameters: item.parameters || {}
+      }
+    }
+  }
+  return config
+}
 
 async function getCompanyContext() {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -56,6 +76,8 @@ async function analyzeSilosWithGemini(
   apiKey: string,
   existingSilos: { name: string; categories: { name: string; pages: { main_keyword: string }[] }[] }[] = [],
   context: { theme?: string; services?: string[]; target_companies?: string[]; sitemap_urls?: string[]; discard_topics?: string[] } = {},
+  aiModel: string = 'gemini-2.5-pro',
+  aiParams: { maxTokens?: number; temperature?: number } = {},
   attempt: number = 1
 ): Promise<{ silos: SiloProposal[]; intentions: { [key: string]: string } }> {
   const MAX_RETRIES = 2
@@ -163,14 +185,14 @@ Devuelve EXACTAMENTE este JSON:
     const requestBody = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 20000,
+        temperature: aiParams.temperature ?? 0.3,
+        maxOutputTokens: aiParams.maxTokens ?? 20000,
         responseMimeType: 'application/json'
       }
     }
 
     const response = await fetch(
-      `${API_URL}/${MODEL}:generateContent?key=${apiKey}`,
+      `${API_URL}/${aiModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -218,7 +240,7 @@ Devuelve EXACTAMENTE este JSON:
     if (attempt <= MAX_RETRIES) {
       console.log(`Retrying SILO analysis (attempt ${attempt + 1})...`)
       await new Promise(resolve => setTimeout(resolve, 2000))
-      return analyzeSilosWithGemini(keywords, apiKey, existingSilos, context, attempt + 1)
+      return analyzeSilosWithGemini(keywords, apiKey, existingSilos, context, aiModel, aiParams, attempt + 1)
     }
     throw error
   }
@@ -342,9 +364,14 @@ export async function POST(request: NextRequest) {
 
     const keywordTexts = keywords.slice(0, 150).map(k => k.keyword)
     
-    console.log(`Analyzing ${keywordTexts.length} keywords for SILO proposal...`)
+    const aiConfig = await getAIConfig()
+    const siloConfig = aiConfig?.silo || { model: 'gemini-2.5-pro', parameters: { maxTokens: 20000, temperature: 0.3 } }
+    const aiModel = siloConfig.model
+    const aiParams = siloConfig.parameters || {}
     
-    const proposal = await analyzeSilosWithGemini(keywordTexts, apiKey, existingSilos, context || {})
+    console.log(`Analyzing ${keywordTexts.length} keywords for SILO proposal with model: ${aiModel}`)
+    
+    const proposal = await analyzeSilosWithGemini(keywordTexts, apiKey, existingSilos, context || {}, aiModel, aiParams)
 
     return NextResponse.json({
       success: true,

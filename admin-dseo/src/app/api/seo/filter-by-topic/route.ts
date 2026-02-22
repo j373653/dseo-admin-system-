@@ -4,6 +4,27 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
+async function getAIConfig() {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  
+  const { data } = await supabase
+    .from('d_seo_admin_ai_config')
+    .select('task, model, parameters')
+  
+  if (!data) return {}
+  
+  const config: { [key: string]: any } = {}
+  for (const item of data) {
+    if (item.active !== false) {
+      config[item.task] = {
+        model: item.model,
+        parameters: item.parameters || {}
+      }
+    }
+  }
+  return config
+}
+
 async function getCompanyContext() {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   

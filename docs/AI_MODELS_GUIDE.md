@@ -188,6 +188,38 @@ INSTRUCCIONES:
 
 ---
 
+## ⚙️ Configuración de Modelos en Supabase
+
+Los modelos IA se configuran en la tabla `d_seo_admin_ai_config`:
+
+```sql
+SELECT * FROM d_seo_admin_ai_config;
+```
+
+| task | model | parameters |
+|------|-------|------------|
+| filter | gemini-2.5-flash-lite | {"maxTokens": 4000} |
+| cluster | gemini-2.5-flash | {"maxTokens": 8000} |
+| silo | gemini-2.5-pro | {"maxTokens": 20000, "temperature": 0.3} |
+
+### APIs de Gestión
+
+| API | Método | Función |
+|-----|--------|---------|
+| `/api/seo/ai-config` | GET | Obtener configuración actual |
+| `/api/seo/ai-config` | PATCH | Actualizar modelo para una tarea |
+
+### ⚠️ IMPORTANTE: Usar siempre el modelo correcto
+
+**Reglas de oro:**
+1. **Filtrado (filter)**: Usar `gemini-2.5-flash-lite` - rápido, RPD ilimitado
+2. **Clustering (cluster)**: Usar `gemini-2.5-flash` - balance precisión/velocidad
+3. **SILO (silo)**: Usar `gemini-2.5-pro` - máximo razonamiento para JSON complejo
+
+**No usar Flash Lite para SILO** - el JSON se truncará.
+
+---
+
 ## ⚠️ Rate Limits - Límites a Respetar
 
 ### Hard Limits (No negociables)
