@@ -177,15 +177,25 @@ export async function POST(request: NextRequest) {
                   ...(pageData.secondary_keywords || [])
                 ]
 
+                console.log('Keywords to assign:', allPageKeywords, 'to page:', pageId)
+
                 for (const kw of allPageKeywords) {
                   const kwLower = kw.toLowerCase().trim()
                   
-                  const { data: kwData } = await supabase
+                  console.log('Looking for keyword:', kwLower)
+                  
+                  const { data: kwData, error: kwError } = await supabase
                     .from('d_seo_admin_raw_keywords')
-                    .select('id')
+                    .select('id, keyword, status')
                     .ilike('keyword', kwLower)
                     .in('status', ['pending', 'clustered'])
                     .maybeSingle()
+
+                  if (kwError) {
+                    console.error('Keyword search error:', kwError)
+                  }
+                  
+                  console.log('Found keyword:', kwData)
 
                   if (kwData && pageId) {
                     await supabase
@@ -205,6 +215,9 @@ export async function POST(request: NextRequest) {
                       }, { onConflict: 'keyword_id,page_id' })
 
                     results.keywordsClustered++
+                    console.log('Keyword assigned:', kw, 'to page:', pageId)
+                  } else {
+                    console.log('Keyword NOT found or pageId is null. kwData:', kwData, 'pageId:', pageId)
                   }
                 }
 
