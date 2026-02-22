@@ -60,6 +60,10 @@ export default function SilosPage() {
   const [editPagePillar, setEditPagePillar] = useState(false)
   const [editPageType, setEditPageType] = useState('blog')
   const [expandedSilos, setExpandedSilos] = useState<Set<string>>(new Set())
+  const [showKeywordPanel, setShowKeywordPanel] = useState(false)
+  const [selectedPageForKeywords, setSelectedPageForKeywords] = useState<string | null>(null)
+  const [unassignedKeywords, setUnassignedKeywords] = useState<Keyword[]>([])
+  const [loadingKeywords, setLoadingKeywords] = useState(false)
 
   const fetchSilos = async () => {
     try {
@@ -244,6 +248,41 @@ export default function SilosPage() {
       newExpanded.add(id)
     }
     setExpandedSilos(newExpanded)
+  }
+
+  const openKeywordPanel = async (pageId: string) => {
+    setSelectedPageForKeywords(pageId)
+    setShowKeywordPanel(true)
+    setLoadingKeywords(true)
+    try {
+      const res = await fetch('/api/seo/keywords/assign?unassigned=true')
+      const data = await res.json()
+      setUnassignedKeywords(data.keywords || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingKeywords(false)
+    }
+  }
+
+  const assignKeyword = async (keywordId: string) => {
+    if (!selectedPageForKeywords) return
+    const res = await fetch('/api/seo/keywords/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword_id: keywordId, page_id: selectedPageForKeywords })
+    })
+    if (res.ok) {
+      await fetchSilos()
+      setUnassignedKeywords(prev => prev.filter(k => k.id !== keywordId))
+    }
+  }
+
+  const unassignKeyword = async (keywordId: string) => {
+    const res = await fetch(`/api/seo/keywords/assign?keyword_id=${keywordId}`, { method: 'DELETE' })
+    if (res.ok) {
+      await fetchSilos()
+    }
   }
 
   if (loading) return <div>Cargando jerarquía SILO...</div>
@@ -460,15 +499,39 @@ export default function SilosPage() {
                                 )}
                                 {p.keywords && p.keywords.length > 0 && (
                                   <div className="mt-2 pl-2 border-l-2 border-gray-300">
-                                    <div className="text-xs text-gray-500 mb-1">Keywords asignadas:</div>
+                                    <div className="text-xs text-gray-500 mb-1">
+                                      Keywords asignadas:
+                                      <button 
+                                        onClick={() => openKeywordPanel(p.id)}
+                                        className="ml-2 text-blue-600 hover:text-blue-800"
+                                      >
+                                        + Añadir
+                                      </button>
+                                    </div>
                                     <div className="flex flex-wrap gap-1">
                                       {p.keywords.map((kw) => (
-                                        <span key={kw.id} className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">
+                                        <span key={kw.id} className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded flex items-center gap-1">
                                           {kw.keyword}
-                                          {kw.search_volume > 0 && <span className="text-gray-400 ml-1">({kw.search_volume})</span>}
+                                          {kw.search_volume > 0 && <span className="text-gray-400">({kw.search_volume})</span>}
+                                          <button 
+                                            onClick={() => unassignKeyword(kw.id)}
+                                            className="text-red-400 hover:text-red-600 ml-1"
+                                          >
+                                            ×
+                                          </button>
                                         </span>
                                       ))}
                                     </div>
+                                  </div>
+                                )}
+                                {!p.keywords || p.keywords.length === 0 && (
+                                  <div className="mt-2">
+                                    <button 
+                                      onClick={() => openKeywordPanel(p.id)}
+                                      className="text-sm text-blue-600 hover:text-blue-800"
+                                    >
+                                      + Asignar keywords
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -581,6 +644,52 @@ export default function SilosPage() {
           </div>
         ))}
       </div>
+      )}
+      
+      {showKeywordPanel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">Asignar Keywords</h3>
+              <button onClick={() => setShowKeywordPanel(false)} className="text-gray-500 hover:text-gray-700 text-2xl">
+                ×
+              </button>
+            </div>
+            
+            {loadingKeywords ? (
+              <div className="text-center py-4">Cargando keywords...</div>
+            ) : unassignedKeywords.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                No hay keywords disponibles para asignar.
+                <br />
+                <Link href="/admin/keywords" className="text-blue-600 hover:underline">
+                  Importar más keywords
+                </Link>
+              </div>
+            ) : (
+              <div className="overflow-y-auto flex-1">
+                <div className="space-y-2">
+                  {unassignedKeywords.map((kw) => (
+                    <div key={kw.id} className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100">
+                      <div>
+                        <div className="font-medium">{kw.keyword}</div>
+                        <div className="text-xs text-gray-500">
+                          Volumen: {kw.search_volume || 0} | Intención: {kw.intent || 'N/A'}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => assignKeyword(kw.id)}
+                        className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                      >
+                        Asignar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
