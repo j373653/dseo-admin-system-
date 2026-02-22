@@ -41,6 +41,7 @@ function calculateTopicMatch(
   const normalized = normalizeKeyword(keyword)
   const words = normalized.split(' ')
   
+  // First check if it should be discarded (off-topic)
   for (const topic of discardTopics) {
     const topicNormalized = normalizeKeyword(topic)
     if (normalized.includes(topicNormalized) || topicNormalized.split(' ').some(w => words.includes(w))) {
@@ -52,9 +53,14 @@ function calculateTopicMatch(
     }
   }
   
+  // Then check if it matches any service (more flexible - ANY word match)
   for (const service of services) {
     const serviceNormalized = normalizeKeyword(service)
-    if (normalized.includes(serviceNormalized) || serviceNormalized.split(' ').every(w => words.includes(w))) {
+    const serviceWords = serviceNormalized.split(' ').filter(w => w.length > 2) // Ignore short words
+    
+    // Match if ANY significant word from service is in keyword
+    const hasMatch = serviceWords.some(w => words.includes(w))
+    if (hasMatch) {
       return { match: true, reason: `Coincide con servicio: ${service}`, topic: 'servicio' }
     }
   }
@@ -64,6 +70,7 @@ function calculateTopicMatch(
     reason: `No coincide con ningún servicio de d-seo.es`,
     topic: undefined
   }
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -72,6 +79,9 @@ export async function POST(request: NextRequest) {
     const { keywordIds, keywordTexts } = await request.json()
     
     const context = await getCompanyContext()
+    console.log('Context loaded:', context ? 'yes' : 'no')
+    console.log('Services from context:', context?.services)
+    console.log('Discard topics from context:', context?.discard_topics)
     
     const services = context?.services || [
       'desarrollo web', 'sitios web', 'wordpress', 'ecommerce', 'tienda online',
