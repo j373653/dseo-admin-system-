@@ -49,71 +49,82 @@ export async function POST(request: NextRequest) {
       try {
         console.log('Processing silo:', siloData.name)
         
-        const { data: silo, error: siloError } = await supabase
-          .from('d_seo_admin_silos')
-          .upsert({ 
-            name: siloData.name
-          })
-          .select()
-          .single()
-
-        if (siloError) {
-          console.error('Silo upsert error:', siloError)
-          results.errors.push(`Error con silo ${siloData.name}: ${siloError.message}`)
-          continue
-        }
-
-        const existingSilo = await supabase
+        // First check if silo exists
+        const { data: existingSilos } = await supabase
           .from('d_seo_admin_silos')
           .select('id')
           .eq('name', siloData.name)
-          .single()
-
-        if (existingSilo.error) {
-          console.error('Error finding silo:', existingSilo.error)
-        }
-
-        if (existingSilo.data) {
+          .limit(1)
+        
+        let siloId: string | null = null
+        
+        if (existingSilos && existingSilos.length > 0) {
+          // Use existing silo
+          siloId = existingSilos[0].id
           results.silosCreated++
-          console.log('Silo created/updated:', siloData.name, existingSilo.data.id)
+          console.log('Using existing silo:', siloData.name, siloId)
+        } else {
+          // Create new silo
+          const { data: newSilo, error: siloError } = await supabase
+            .from('d_seo_admin_silos')
+            .insert({ name: siloData.name })
+            .select('id')
+            .single()
+          
+          if (siloError) {
+            console.error('Silo insert error:', siloError)
+            results.errors.push(`Error con silo ${siloData.name}: ${siloError.message}`)
+            continue
+          }
+          
+          siloId = newSilo?.id
+          results.silosCreated++
+          console.log('Created new silo:', siloData.name, siloId)
         }
 
-        const siloId = existingSilo.data?.id
+        if (!siloId) {
+          console.error('Could not get or create silo:', siloData.name)
+          continue
+        }
 
         for (const catData of (siloData.categories || [])) {
           try {
-            console.log('Processing category:', catData.name)
+            console.log('Processing category:', catData.name, 'for silo:', siloId)
             
-            const { data: category, error: catError } = await supabase
-              .from('d_seo_admin_categories')
-              .upsert({
-                silo_id: siloId,
-                name: catData.name
-              })
-              .select()
-              .single()
-
-            if (catError) {
-              console.error('Category upsert error:', catError)
-              results.errors.push(`Error con categoría ${catData.name}: ${catError.message}`)
-              continue
-            }
-
-            const existingCat = await supabase
+            // First check if category exists
+            const { data: existingCats } = await supabase
               .from('d_seo_admin_categories')
               .select('id')
               .eq('silo_id', siloId)
               .eq('name', catData.name)
-              .single()
-
-            if (existingCat.data) {
+              .limit(1)
+            
+            let categoryId: string | null = null
+            
+            if (existingCats && existingCats.length > 0) {
+              categoryId = existingCats[0].id
               results.categoriesCreated++
+              console.log('Using existing category:', catData.name, categoryId)
+            } else {
+              const { data: newCat, error: catError } = await supabase
+                .from('d_seo_admin_categories')
+                .insert({ silo_id: siloId, name: catData.name })
+                .select('id')
+                .single()
+              
+              if (catError) {
+                console.error('Category insert error:', catError)
+                results.errors.push(`Error con categoría ${catData.name}: ${catError.message}`)
+                continue
+              }
+              
+              categoryId = newCat?.id
+              results.categoriesCreated++
+              console.log('Created new category:', catData.name, categoryId)
             }
 
-            const categoryId = existingCat.data?.id
-
             if (!categoryId) {
-              console.error('Category ID not found, skipping pages')
+              console.error('Could not get or create category:', catData.name)
               continue
             }
 
@@ -121,39 +132,45 @@ export async function POST(request: NextRequest) {
               try {
                 console.log('Processing page:', pageData.main_keyword, 'for category:', categoryId)
                 
-                const { data: page, error: pageError } = await supabase
-                  .from('d_seo_admin_pages')
-                  .insert({
-                    silo_id: siloId,
-                    category_id: categoryId,
-                    main_keyword: pageData.main_keyword,
-                    slug: slugify(pageData.main_keyword),
-                    url_target: `/${slugify(pageData.main_keyword)}`,
-                    is_pillar: pageData.is_pillar || false,
-                    content_type_target: pageData.type || 'blog',
-                    title: pageData.main_keyword
-                  })
-                  .select()
-                  .single()
-
-                if (pageError) {
-                  console.error('Page upsert error:', pageError)
-                  results.errors.push(`Error con página ${pageData.main_keyword}: ${pageError.message}`)
-                  continue
-                }
-
-                const existingPage = await supabase
+                // First check if page exists
+                const { data: existingPages } = await supabase
                   .from('d_seo_admin_pages')
                   .select('id')
                   .eq('category_id', categoryId)
                   .eq('main_keyword', pageData.main_keyword)
-                  .single()
-
-                if (existingPage.data) {
+                  .limit(1)
+                
+                let pageId: string | null = null
+                
+                if (existingPages && existingPages.length > 0) {
+                  pageId = existingPages[0].id
                   results.pagesCreated++
+                } else {
+                  const { data: newPage, error: pageError } = await supabase
+                    .from('d_seo_admin_pages')
+                    .insert({
+                      silo_id: siloId,
+                      category_id: categoryId,
+                      main_keyword: pageData.main_keyword,
+                      slug: slugify(pageData.main_keyword),
+                      url_target: `/${slugify(pageData.main_keyword)}`,
+                      is_pillar: pageData.is_pillar || false,
+                      content_type_target: pageData.type || 'blog',
+                      title: pageData.main_keyword
+                    })
+                    .select('id')
+                    .single()
+                  
+                  if (pageError) {
+                    console.error('Page insert error:', pageError)
+                    results.errors.push(`Error con página ${pageData.main_keyword}: ${pageError.message}`)
+                    continue
+                  }
+                  
+                  pageId = newPage?.id
+                  results.pagesCreated++
+                  console.log('Created new page:', pageData.main_keyword, pageId)
                 }
-
-                const pageId = existingPage.data?.id
 
                 const allPageKeywords = [
                   pageData.main_keyword,
@@ -170,7 +187,7 @@ export async function POST(request: NextRequest) {
                     .in('status', ['pending', 'clustered'])
                     .maybeSingle()
 
-                  if (kwData) {
+                  if (kwData && pageId) {
                     await supabase
                       .from('d_seo_admin_raw_keywords')
                       .update({ 
@@ -192,11 +209,13 @@ export async function POST(request: NextRequest) {
                 }
 
               } catch (pageErr: any) {
+                console.error('Page error:', pageErr)
                 results.errors.push(`Error página ${pageData.main_keyword}: ${pageErr.message}`)
               }
             }
 
           } catch (catErr: any) {
+            console.error('Category error:', catErr)
             results.errors.push(`Error categoría ${catData.name}: ${catErr.message}`)
           }
         }
