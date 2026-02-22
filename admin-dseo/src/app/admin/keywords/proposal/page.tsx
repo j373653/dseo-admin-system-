@@ -87,11 +87,6 @@ export default function ProposalPage() {
     }
   }
 
-  const handleApplyAndContinue = () => {
-    saveProposal()
-    setStep(3)
-  }
-
   const clearSavedProposal = () => {
     localStorage.removeItem('dseo_last_proposal')
     setHasSavedProposal(false)
