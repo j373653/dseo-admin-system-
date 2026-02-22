@@ -147,7 +147,7 @@ ${existingSilosBlock || 'Sin estructura existente'}
 
 Para CADA página, especifica:
 - main_keyword: Keyword principal (OBLIGATORIO: debe estar en la lista de PALABRAS CLAVE A ANALIZAR)
-- secondary_keywords: Keywords secundarias (OBLIGATORIO: todas de la lista proporcionada, separadas por coma)
+- secondary_keywords: Keywords secundarias relacionadas (de la lista proporcionada)
 - type: "service" (servicio), "blog" (artículo), "landing" (aterrizaje)
 - is_pillar: true si es la página más importante de la categoría
 - intent: "informational" (información), "transactional" (compra/contratar), "commercial" (compara)
@@ -155,7 +155,6 @@ Para CADA página, especifica:
 ### REGLAS FINALES
 - NO INVENTES keywords - usa EXACTAMENTE las de la lista
 - Maximiza 5-7 silos
-- Cada categoría: 1-3 páginas máximo
 - keywords "transactional" → tipo "service" o "landing"
 - keywords "informational" → tipo "blog"
 - keywords muy similares → agrupa en la misma página
@@ -480,7 +479,7 @@ export async function POST(request: NextRequest) {
     const aiModel = siloConfig.model
     const aiParams = siloConfig.parameters || {}
 
-    const BATCH_SIZE = 300
+    const BATCH_SIZE = 150
     const allSilos: SiloProposal[] = []
     const allIntentions: { [key: string]: string } = {}
     const allValidationErrors: string[] = []
