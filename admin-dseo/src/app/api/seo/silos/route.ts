@@ -78,10 +78,16 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const { name, description, parent_silo_id } = await req.json()
+    console.log('Creating silo:', name, description)
     const { data, error } = await supabaseClient.from('d_seo_admin_silos').insert({ name, description, parent_silo_id }).select().single()
-    if (error) throw new Error(error.message)
+    if (error) {
+      console.error('Error creating silo:', error)
+      throw new Error(error.message)
+    }
+    console.log('Silo created:', data)
     return NextResponse.json({ silo: data })
   } catch (err: any) {
+    console.error('Error in POST silos:', err)
     return NextResponse.json({ error: err.message }, { status: 400 })
   }
 }
