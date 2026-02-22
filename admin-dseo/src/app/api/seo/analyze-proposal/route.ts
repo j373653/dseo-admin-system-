@@ -233,13 +233,47 @@ ${`{
 
     const content = data.candidates[0].content.parts[0].text
 
+    // Función robusta para extraer JSON
+    function extractJSON(text: string): any {
+      // Método 1: Buscar bloques JSON completos con ```
+      const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+      if (codeBlockMatch) {
+        try {
+          return JSON.parse(codeBlockMatch[1].trim())
+        } catch (e) { /* continue */ }
+      }
+      
+      // Método 2: Buscar desde primer { hasta último }
+      const braceMatch = text.match(/\{[\s\S]*\}/)
+      if (braceMatch) {
+        try {
+          return JSON.parse(braceMatch[0])
+        } catch (e) { /* continue */ }
+      }
+      
+      // Método 3: Intentar reparar JSON truncado
+      const partialMatch = text.match(/\{[\s\S]+/)
+      if (partialMatch) {
+        // Intentar cerrar el JSON manualmente
+        let fixed = partialMatch[0]
+        const opens = (fixed.match(/\{/g) || []).length
+        const closes = (fixed.match(/\}/g) || []).length
+        if (opens > closes) {
+          fixed += '}'.repeat(opens - closes)
+        }
+        try {
+          return JSON.parse(fixed)
+        } catch (e) { /* continue */ }
+      }
+      
+      return null
+    }
+
     let parsed: any
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0])
-      } else {
-        throw new Error('No se encontró JSON en la respuesta')
+      parsed = extractJSON(content)
+      if (!parsed) {
+        throw new Error('No se pudo extraer JSON válido de la respuesta')
       }
     } catch (parseError: any) {
       console.error('JSON Parse error. Content:', content.slice(0, 1000))
