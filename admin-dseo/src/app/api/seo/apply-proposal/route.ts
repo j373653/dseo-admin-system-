@@ -14,6 +14,15 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
+function normalizeForSearch(text: string): string {
+  return (text || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
 export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   
@@ -180,23 +189,42 @@ export async function POST(request: NextRequest) {
                 console.log('Keywords to assign:', allPageKeywords, 'to page:', pageId)
 
                 for (const kw of allPageKeywords) {
-                  const kwLower = kw.toLowerCase().trim()
+                  const kwNormalized = normalizeForSearch(kw)
                    
-                  console.log('Looking for keyword:', kwLower)
-                   
-                  const { data: kwData, error: kwError } = await supabase
+                  console.log('Looking for keyword:', kw, '-> normalized:', kwNormalized)
+                  
+                  let kwData = null
+                  let searchMethod = ''
+                  
+                  // First try: exact match (normalized)
+                  const { data: exactMatch } = await supabase
                     .from('d_seo_admin_raw_keywords')
                     .select('id, keyword, status')
-                    .ilike('keyword', kwLower)
+                    .ilike('keyword', kwNormalized)
                     .in('status', ['pending', 'clustered'])
                     .limit(1)
                     .maybeSingle()
-
-                  if (kwError) {
-                    console.error('Keyword search error:', kwError)
+                  
+                  if (exactMatch) {
+                    kwData = exactMatch
+                    searchMethod = 'exact'
+                  } else {
+                    // Second try: partial match with normalized text
+                    const { data: partialMatch } = await supabase
+                      .from('d_seo_admin_raw_keywords')
+                      .select('id, keyword, status')
+                      .ilike('keyword', `%${kwNormalized}%`)
+                      .in('status', ['pending', 'clustered'])
+                      .limit(1)
+                      .maybeSingle()
+                    
+                    if (partialMatch) {
+                      kwData = partialMatch
+                      searchMethod = 'partial'
+                    }
                   }
-                   
-                  console.log('Found keyword:', kwData)
+                  
+                  console.log('Found keyword:', kwData, 'via:', searchMethod)
 
                   if (kwData && pageId) {
                     await supabase
