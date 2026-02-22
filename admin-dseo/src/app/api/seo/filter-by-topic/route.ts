@@ -70,7 +70,6 @@ function calculateTopicMatch(
     reason: `No coincide con ningún servicio de d-seo.es`,
     topic: undefined
   }
-  }
 }
 
 export async function POST(request: NextRequest) {
