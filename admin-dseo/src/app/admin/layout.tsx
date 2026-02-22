@@ -130,6 +130,16 @@ export default function AdminLayout({
           >
             Contenido Web
           </Link>
+
+          <div className="px-6 py-2 mt-2">
+            <span className="text-xs font-medium text-gray-500 uppercase">Configuración</span>
+          </div>
+          <Link
+            href="/admin/settings/context"
+            className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/settings/context') ? 'bg-gray-800' : ''}`}
+          >
+            ⚙️ Contexto IA
+          </Link>
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-6">
