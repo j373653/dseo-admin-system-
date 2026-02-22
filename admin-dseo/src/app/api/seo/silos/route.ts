@@ -6,7 +6,14 @@ import { supabaseClient } from '@/lib/supabase'
 export async function GET() {
   try {
     // Get all silos
-    const { data: silos } = await supabaseClient.from('d_seo_admin_silos').select('id, name, description')
+    const { data: silos, error: silosError } = await supabaseClient.from('d_seo_admin_silos').select('id, name, description')
+    
+    if (silosError) {
+      console.error('Error fetching silos:', silosError)
+      return NextResponse.json({ error: silosError.message }, { status: 500 })
+    }
+    
+    console.log('Silos found:', silos?.length || 0)
     
     // Get all keyword assignments with keyword data
     const { data: assignments } = await supabaseClient
@@ -47,8 +54,11 @@ export async function GET() {
     }
     
     const result: any[] = []
-    if (silos && silos.length > 0) {
-      for (const silo of silos) {
+    const silosList = silos || []
+    console.log('Processing silos:', silosList.length)
+    
+    if (silosList.length > 0) {
+      for (const silo of silosList) {
         const { data: cats } = await supabaseClient.from('d_seo_admin_categories').select('id, name, description').eq('silo_id', silo.id)
         const categories = [] as any[]
         if (cats && cats.length > 0) {
