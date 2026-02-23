@@ -247,7 +247,7 @@ ${`{
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(120000)
+        signal: AbortSignal.timeout(300000)
       }
     )
 
