@@ -117,6 +117,16 @@ export default function KeywordsPage() {
     fetchData()
   }, [])
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
   const toggleStatusFilter = (status: string) => {
     setStatusFilters(prev => 
       prev.includes(status) 
