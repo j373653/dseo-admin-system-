@@ -50,6 +50,7 @@ export default function ProposalPage() {
   
   const [useExistingSilos, setUseExistingSilos] = useState(true)
   const [applying, setApplying] = useState(false)
+  const [showConfirmDiscard, setShowConfirmDiscard] = useState(false)
 
   const [hasSavedProposal, setHasSavedProposal] = useState(false)
 
@@ -161,7 +162,7 @@ export default function ProposalPage() {
       console.log('autoDiscardedCount:', autoDiscardedCount)
 
       if (keywordIds.length === 0) {
-        setError('No hay keywords pendientes para analizar. Todas fueron descartadas.')
+        setShowConfirmDiscard(true)
         setLoading(false)
         return
       }
@@ -243,6 +244,51 @@ export default function ProposalPage() {
       setError(err.message)
     } finally {
       setApplying(false)
+    }
+  }
+
+  const handleConfirmDiscardAll = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const discardIds = discardSelected.filter(Boolean)
+      
+      if (discardIds.length === 0) {
+        setError('No hay keywords para descartar')
+        setLoading(false)
+        return
+      }
+
+      const res = await fetch('/api/seo/discard-keywords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keywordIds: discardIds })
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setSuccess(`${data.count} keywords descartadas correctamente`)
+        setShowConfirmDiscard(false)
+        
+        const proposalData = {
+          proposal: [],
+          intentions: {},
+          discardSelected: [],
+          keywordsDiscarded: data.count,
+          savedAt: new Date().toISOString()
+        }
+        localStorage.setItem('dseo_last_proposal', JSON.stringify(proposalData))
+        
+        setStep(4)
+      } else {
+        setError(data.error || 'Error al descartar keywords')
+      }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -465,13 +511,55 @@ export default function ProposalPage() {
                 </table>
               </div>
 
-              <button
-                onClick={handleAnalyzeWithAI}
-                disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {loading ? 'Analizando con IA...' : 'Analizar con IA'}
-              </button>
+              <div className="flex gap-4 mt-4">
+                <button
+                  onClick={handleAnalyzeWithAI}
+                  disabled={loading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Analizando con IA...' : 'Analizar con IA'}
+                </button>
+                
+                {discardSelected.length > 0 && (
+                  <button
+                    onClick={() => setShowConfirmDiscard(true)}
+                    disabled={loading}
+                    className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    Descartar Todas las Keywords
+                  </button>
+                )}
+              </div>
+
+              {showConfirmDiscard && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+                    <h3 className="text-lg font-bold mb-4">Confirmar Descarte</h3>
+                    <p className="mb-4">
+                      ¿Estás seguro de descartar <strong>{discardSelected.length}</strong> keywords?
+                    </p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Estas keywords pasarán a estado "descartadas" y no se podrán usar para clustering.
+                    </p>
+                    <div className="flex gap-4 justify-end">
+                      <button
+                        onClick={() => setShowConfirmDiscard(false)}
+                        disabled={loading}
+                        className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleConfirmDiscardAll}
+                        disabled={loading}
+                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {loading ? 'Descartando...' : 'Confirmar Descarte'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -613,14 +701,24 @@ export default function ProposalPage() {
 
           {step === 4 && (
             <div className="text-center py-8">
-              <div className="text-5xl mb-4">🎉</div>
-              <h2 className="text-2xl font-bold mb-2">¡Propuesta Aplicada!</h2>
-              <p className="text-gray-600 mb-6">
-                La estructura SILO ha sido creada y las keywords han sido asignadas.
-              </p>
-              <Link href="/admin/keywords/silo">
+              {success ? (
+                <>
+                  <div className="text-5xl mb-4">✓</div>
+                  <h2 className="text-2xl font-bold mb-2">Proceso Completado</h2>
+                  <p className="text-gray-600 mb-6">{success}</p>
+                </>
+              ) : (
+                <>
+                  <div className="text-5xl mb-4">🎉</div>
+                  <h2 className="text-2xl font-bold mb-2">¡Propuesta Aplicada!</h2>
+                  <p className="text-gray-600 mb-6">
+                    La estructura SILO ha sido creada y las keywords han sido asignadas.
+                  </p>
+                </>
+              )}
+              <Link href="/admin/keywords">
                 <button className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                  Ver Silos
+                  Ver Keywords
                 </button>
               </Link>
             </div>
