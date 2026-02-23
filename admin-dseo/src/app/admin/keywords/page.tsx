@@ -595,7 +595,7 @@ export default function KeywordsPage() {
               className="flex items-center space-x-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Revertir a pendiente</span>
+              <span>Reactivar (→ pending)</span>
             </button>
             <button
               onClick={removeFromCluster}
@@ -639,7 +639,8 @@ export default function KeywordsPage() {
             <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-3">
             <div className="space-y-2">
                 {[
-                  { value: 'pending', label: 'Pendientes (disponibles)', color: 'bg-yellow-100 text-yellow-800' }
+                  { value: 'pending', label: 'Pendientes (disponibles)', color: 'bg-yellow-100 text-yellow-800' },
+                  { value: 'discarded', label: 'Descartadas (para reactivar)', color: 'bg-red-100 text-red-800' }
                 ].map((option) => (
                   <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
                     <input

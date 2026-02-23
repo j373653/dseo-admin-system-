@@ -172,16 +172,8 @@ export default function ImportKeywordsPage() {
             .maybeSingle()
 
           if (existing) {
-            if (existing.status === 'discarded') {
-              await supabaseClient
-                .from('d_seo_admin_raw_keywords')
-                .update({ status: 'pending', search_volume: searchVolume, difficulty: difficulty })
-                .eq('id', existing.id)
-              imported++
-              importedKeywordsList.push({ id: existing.id, keyword: keywordText, search_volume: searchVolume, difficulty })
-            } else {
-              skipped++
-            }
+            // Ignorar siempre las keywords existentes (no reimportar ni siquiera las descartadas)
+            skipped++
             continue
           }
           
