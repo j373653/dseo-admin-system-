@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getSupabaseAdmin } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export async function POST(request: Request) {
   try {
@@ -9,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No hay keywords para descartar' }, { status: 400 })
     }
 
-    const supabase = getSupabaseAdmin()
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { error } = await supabase
       .from('d_seo_admin_raw_keywords')
