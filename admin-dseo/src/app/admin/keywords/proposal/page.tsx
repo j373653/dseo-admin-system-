@@ -162,7 +162,7 @@ export default function ProposalPage() {
       console.log('autoDiscardedCount:', autoDiscardedCount)
 
       if (keywordIds.length === 0) {
-        setShowConfirmDiscard(true)
+        setError('No hay keywords pendientes para analizar. Todas fueron descartadas. Usa el botón "Descartar Todas" para aplicar los descartes.')
         setLoading(false)
         return
       }
@@ -248,6 +248,7 @@ export default function ProposalPage() {
   }
 
   const handleConfirmDiscardAll = async () => {
+    setShowConfirmDiscard(false)
     setLoading(true)
     setError('')
 
