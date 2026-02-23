@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { supabaseClient } from '@/lib/supabase'
 
 type PageData = {
   main_keyword: string
@@ -292,8 +293,7 @@ export default function ProposalPage() {
 
   const handleRevertToPending = async (keywordId: string) => {
     try {
-      const { supabase } = await import('@/lib/supabase')
-      await supabase
+      await supabaseClient
         .from('d_seo_admin_raw_keywords')
         .update({ 
           status: 'pending',
