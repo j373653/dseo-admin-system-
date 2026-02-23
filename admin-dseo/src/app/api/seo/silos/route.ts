@@ -59,23 +59,41 @@ export async function GET() {
     const result: any[] = []
     const silosList = silos || []
     
+    // Build keyword count per page
+    const pageKeywordCount: { [pageId: string]: number } = {}
+    for (const pageId in pageKeywordsMap) {
+      pageKeywordCount[pageId] = pageKeywordsMap[pageId].length
+    }
+    
     if (silosList.length > 0) {
       for (const silo of silosList) {
+        // Get categories for this silo
         const { data: cats } = await supabaseClient.from('d_seo_admin_categories').select('id, name, description').eq('silo_id', silo.id)
+        
+        // Count total keywords for this silo
+        let totalKeywords = 0
         const categories = [] as any[]
         if (cats && cats.length > 0) {
           for (const cat of cats) {
-            const { data: pages } = await supabaseClient.from('d_seo_admin_pages').select('id, main_keyword, url_target, is_pillar, content_type_target, pillar_data').eq('category_id', cat.id)
+            const { data: pages } = await supabaseClient
+              .from('d_seo_admin_pages')
+              .select('id, main_keyword, url_target, is_pillar, content_type_target, pillar_data')
+              .eq('category_id', cat.id)
+              .order('created_at', { ascending: false })
             
-            const pagesWithKeywords = (pages || []).map(p => ({
-              ...p,
-              keywords: pageKeywordsMap[p.id] || []
-            }))
+            const pagesWithKeywords = (pages || []).map(p => {
+              const kwCount = pageKeywordCount[p.id] || 0
+              totalKeywords += kwCount
+              return {
+                ...p,
+                keywords: pageKeywordsMap[p.id] || []
+              }
+            })
             
             categories.push({ id: cat.id, name: cat.name, description: cat.description, pages: pagesWithKeywords })
           }
         }
-        result.push({ id: silo.id, name: silo.name, description: silo.description, categories })
+        result.push({ id: silo.id, name: silo.name, description: silo.description, keywordCount: totalKeywords, categories })
       }
     }
     return NextResponse.json({ silos: result })

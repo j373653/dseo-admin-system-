@@ -30,6 +30,7 @@ type Silo = {
   id: string
   name: string
   description?: string
+  keywordCount?: number
   categories: SiloCategory[]
 }
 
@@ -75,6 +76,7 @@ export default function SilosPage() {
         id: s.id,
         name: s.name,
         description: s.description,
+        keywordCount: s.keywordCount || 0,
         categories: (s.categories || []).map((c: any) => ({
           id: c.id,
           name: c.name,
@@ -360,6 +362,9 @@ export default function SilosPage() {
                   <div className="flex items-center gap-3">
                     <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-1 rounded">
                       {s.categories?.length || 0} categorías
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded ${(s.keywordCount || 0) > 0 ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-600'}`}>
+                      {s.keywordCount || 0} keywords
                     </span>
                     <button 
                       onClick={(e) => { e.stopPropagation(); startEditSilo(s); }}
