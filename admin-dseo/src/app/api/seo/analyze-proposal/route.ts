@@ -596,7 +596,7 @@ export async function POST(request: NextRequest) {
     const aiModel = siloConfig.model
     const aiParams = siloConfig.parameters || {}
 
-    const BATCH_SIZE = 100
+    const BATCH_SIZE = 40
     const allSilos: any[] = []
     const allIntentions: { [key: string]: string } = {}
     const allValidationErrors: string[] = []
