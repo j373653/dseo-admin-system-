@@ -49,6 +49,7 @@ export default function KeywordsPage() {
   const [statusFilters, setStatusFilters] = useState<string[]>(['pending', 'clustered', 'discarded'])
   const [showStatusFilter, setShowStatusFilter] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
+  const [siloAssignedCount, setSiloAssignedCount] = useState(0)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [actionLoading, setActionLoading] = useState(false)
 
@@ -64,7 +65,7 @@ export default function KeywordsPage() {
     try {
       setLoading(true)
       
-      const [keywordsRes, clustersRes, countRes] = await Promise.all([
+      const [keywordsRes, clustersRes, countRes, siloRes] = await Promise.all([
         supabaseClient
           .from('d_seo_admin_raw_keywords')
           .select('*')
@@ -74,7 +75,10 @@ export default function KeywordsPage() {
           .select('id, name'),
         supabaseClient
           .from('d_seo_admin_raw_keywords')
-          .select('id', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true }),
+        supabaseClient
+          .from('d_seo_admin_keyword_assignments')
+          .select('keyword_id', { count: 'exact', head: true })
       ])
 
       console.log('Keywords fetched:', keywordsRes.data?.length, 'Error:', keywordsRes.error)
@@ -88,6 +92,7 @@ export default function KeywordsPage() {
       setKeywords(keywordsRes.data || [])
       setClusters(clustersRes.data || [])
       setTotalCount(countRes.count || 0)
+      setSiloAssignedCount(siloRes.count || 0)
 
       // Construir clusters existentes con sus keywords para IA (para 1)
       const clustersList = clustersRes.data || []
@@ -486,11 +491,44 @@ export default function KeywordsPage() {
 
   return (
     <div>
+      {/* Dashboard de Stats */}
+      <div className="mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Total */}
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-gray-500">
+            <div className="text-3xl font-bold text-gray-800">{totalCount}</div>
+            <div className="text-sm text-gray-500">Total Keywords</div>
+          </div>
+          
+          {/* Asignadas a SILO */}
+          <Link href="/admin/keywords/silo">
+            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500 hover:shadow-md transition-shadow cursor-pointer">
+              <div className="text-3xl font-bold text-green-600">{siloAssignedCount}</div>
+              <div className="text-sm text-green-600">Asignadas a SILO</div>
+            </div>
+          </Link>
+          
+          {/* Pendientes */}
+          <Link href="/admin/keywords/proposal">
+            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500 hover:shadow-md transition-shadow cursor-pointer">
+              <div className="text-3xl font-bold text-yellow-600">{(keywords || []).filter(k => k.status === 'pending').length}</div>
+              <div className="text-sm text-yellow-600">Pendientes (disponibles)</div>
+            </div>
+          </Link>
+          
+          {/* Descartadas */}
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-300 opacity-75">
+            <div className="text-3xl font-bold text-red-400">{(keywords || []).filter(k => k.status === 'discarded').length}</div>
+            <div className="text-sm text-red-400">Descartadas</div>
+          </div>
+        </div>
+      </div>
+
       <div className="mb-6 flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Keywords</h2>
           <p className="text-gray-600">
-            {totalCount} keywords | {(keywords || []).filter(k => k.status === 'pending').length} pendientes | {(keywords || []).filter(k => k.status === 'clustered').length} clusterizadas | {(keywords || []).filter(k => k.status === 'discarded').length} descartadas
+            Sistema SILO activo | {siloAssignedCount} keywords asignadas a páginas
           </p>
         </div>
         <div className="flex space-x-3">
@@ -517,6 +555,8 @@ export default function KeywordsPage() {
               Ver Silos
             </button>
           </Link>
+          {/* Botón clusters obsoleto - temporalmente oculto */}
+          {/* 
           <button
             onClick={desclusterizeAll}
             disabled={actionLoading}
@@ -524,6 +564,7 @@ export default function KeywordsPage() {
           >
             Desclusterizar Todo
           </button>
+          */}
         </div>
       </div>
 
