@@ -316,9 +316,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark pending keywords NOT in proposal as discarded (IA decided they are not relevant)
+    // Only discard keywords that are NOT in keepPendingKeywordIds
     console.log('Proposal keyword IDs collected:', proposalKeywordIds.length)
+    console.log('Keep pending keyword IDs:', keepPendingKeywordIds?.length)
     
     if (proposalKeywordIds.length > 0) {
+      // Get all pending keywords
       const { data: pendingKeywords } = await supabase
         .from('d_seo_admin_raw_keywords')
         .select('id')
@@ -326,7 +329,13 @@ export async function POST(request: NextRequest) {
       
       if (pendingKeywords && pendingKeywords.length > 0) {
         const pendingIds = pendingKeywords.map(k => k.id)
-        const toDiscard = pendingIds.filter(id => !proposalKeywordIds.includes(id))
+        
+        // Keywords to discard = pending but NOT in proposal AND NOT in keepPending
+        const keepPendingSet = new Set(keepPendingKeywordIds || [])
+        const toDiscard = pendingIds.filter(id => 
+          !proposalKeywordIds.includes(id) && 
+          !keepPendingSet.has(id)
+        )
         
         console.log('Pending keywords to discard:', toDiscard.length)
         
