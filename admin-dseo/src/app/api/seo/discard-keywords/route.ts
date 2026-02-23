@@ -14,21 +14,30 @@ export async function POST(request: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { error } = await supabase
-      .from('d_seo_admin_raw_keywords')
-      .update({
-        status: 'discarded',
-        discarded_at: new Date().toISOString(),
-        discarded_reason: 'No coincide con ningún servicio de d-seo.es'
-      })
-      .in('id', keywordIds)
+    const chunkSize = 100
+    let totalUpdated = 0
 
-    if (error) {
-      console.error('Error discarding keywords:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    for (let i = 0; i < keywordIds.length; i += chunkSize) {
+      const chunk = keywordIds.slice(i, i + chunkSize)
+      
+      const { error } = await supabase
+        .from('d_seo_admin_raw_keywords')
+        .update({
+          status: 'discarded',
+          discarded_at: new Date().toISOString(),
+          discarded_reason: 'No coincide con ningún servicio de d-seo.es'
+        })
+        .in('id', chunk)
+
+      if (error) {
+        console.error('Error discarding keywords:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+
+      totalUpdated += chunk.length
     }
 
-    return NextResponse.json({ success: true, count: keywordIds.length })
+    return NextResponse.json({ success: true, count: totalUpdated })
   } catch (err: any) {
     console.error('Error in discard-keywords:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
