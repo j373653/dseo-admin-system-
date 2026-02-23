@@ -151,13 +151,29 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    const toDiscard = results.filter(r => r.shouldDiscard)
+    const toDiscard = results.filter(r => r.shouldDiscard && r.id) // Only with ID
     const valid = results.filter(r => !r.shouldDiscard)
+    
+    // Auto-discard keywords that are off-topic
+    if (toDiscard.length > 0) {
+      const discardIds = toDiscard.map(r => r.id)
+      await supabase
+        .from('d_seo_admin_raw_keywords')
+        .update({ 
+          status: 'discarded',
+          discarded_at: new Date().toISOString(),
+          discarded_reason: 'Descartado automáticamente por filtro de temática'
+        })
+        .in('id', discardIds)
+      
+      console.log(`Auto-discarded ${discardIds.length} off-topic keywords`)
+    }
     
     return NextResponse.json({
       total: results.length,
       valid: valid.length,
       toDiscard: toDiscard.length,
+      autoDiscarded: toDiscard.length,
       results,
       summary: {
         validKeywords: valid,

@@ -42,6 +42,7 @@ export default function ProposalPage() {
   const [keywords, setKeywords] = useState<KeywordInfo[]>([])
   const [filterResults, setFilterResults] = useState<FilterResult[]>([])
   const [discardSelected, setDiscardSelected] = useState<string[]>([])
+  const [autoDiscardedCount, setAutoDiscardedCount] = useState(0)
   
   const [proposal, setProposal] = useState<SiloData[]>([])
   const [intentions, setIntentions] = useState<{ [key: string]: string }>({})
@@ -125,6 +126,7 @@ export default function ProposalPage() {
       if (data.results) {
         setFilterResults(data.results)
         setDiscardSelected(data.results.filter((r: FilterResult) => r.shouldDiscard).map((r: FilterResult) => r.id))
+        setAutoDiscardedCount(data.autoDiscarded || 0)
         setStep(2)
       } else {
         setError(data.error || 'Error al filtrar')
@@ -147,11 +149,21 @@ export default function ProposalPage() {
     setError('')
 
     try {
-      const keywordIds = keywords
-        .filter(k => !discardSelected.includes(k.id))
-        .map(k => k.id)
+      // Only send keywords that are NOT in discardSelected (they are pending)
+      const keywordIds = filterResults
+        .filter(r => !discardSelected.includes(r.id))
+        .map(r => r.id)
+        .filter(Boolean)
 
-      console.log('keywordIds after filter:', keywordIds.length)
+      console.log('keywordIds for AI analysis (pending):', keywordIds.length)
+      console.log('discardSelected:', discardSelected.length)
+      console.log('autoDiscardedCount:', autoDiscardedCount)
+
+      if (keywordIds.length === 0) {
+        setError('No hay keywords pendientes para analizar. Todas fueron descartadas.')
+        setLoading(false)
+        return
+      }
 
       const res = await fetch('/api/seo/analyze-proposal', {
         method: 'POST',
@@ -278,6 +290,25 @@ export default function ProposalPage() {
     }
   }
 
+  const handleRevertToPending = async (keywordId: string) => {
+    try {
+      const { supabase } = await import('@/lib/supabase')
+      await supabase
+        .from('d_seo_admin_raw_keywords')
+        .update({ 
+          status: 'pending',
+          discarded_at: null,
+          discarded_reason: null
+        })
+        .eq('id', keywordId)
+      
+      setDiscardSelected(discardSelected.filter(d => d !== keywordId))
+      setAutoDiscardedCount(Math.max(0, autoDiscardedCount - 1))
+    } catch (err) {
+      console.error('Error reverting to pending:', err)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
@@ -379,6 +410,18 @@ export default function ProposalPage() {
               <div className="mb-4 p-4 bg-yellow-50 rounded">
                 <p className="font-semibold">
                   {discardSelected.length} keywords no coinciden con la temática
+                </p>
+                {autoDiscardedCount > 0 && (
+                  <p className="text-sm text-yellow-700 mt-1">
+                    ({autoDiscardedCount} fueron descartadas automáticamente por no ser relevantes para d-seo.es)
+                  </p>
+                )}
+              </div>
+
+              <div className="mb-4 p-4 bg-blue-50 rounded">
+                <p className="text-sm text-blue-700">
+                  💡 Las keywords descartadas automáticamente pueden ser reactivadas marcando la casilla correspondiente.
+                  Luego se enviarán a analizar con IA.
                 </p>
               </div>
 
