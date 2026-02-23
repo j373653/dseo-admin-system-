@@ -141,19 +141,21 @@ export async function POST(request: NextRequest) {
               try {
                 console.log('Processing page:', pageData.main_keyword, 'for category:', categoryId)
                 
-                // First check if page exists
+                // First check if page exists - CASE INSENSITIVE to avoid duplicates
                 const { data: existingPages } = await supabase
                   .from('d_seo_admin_pages')
-                  .select('id')
+                  .select('id, main_keyword')
                   .eq('category_id', categoryId)
-                  .eq('main_keyword', pageData.main_keyword)
+                  .ilike('main_keyword', pageData.main_keyword)
                   .limit(1)
                 
                 let pageId: string | null = null
                 
                 if (existingPages && existingPages.length > 0) {
+                  // Page exists - reuse it (don't create duplicate)
                   pageId = existingPages[0].id
-                  results.pagesCreated++
+                  console.log('Reusing existing page:', existingPages[0].main_keyword, 'ID:', pageId)
+                  // Don't increment pagesCreated - it's not new
                 } else {
                   const { data: newPage, error: pageError } = await supabase
                     .from('d_seo_admin_pages')
