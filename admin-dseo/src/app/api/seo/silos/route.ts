@@ -21,20 +21,33 @@ export async function GET() {
     console.log('Assignments error:', assignmentsError)
     
     const pageKeywordsMap: { [pageId: string]: any[] } = {}
+    let keywordIds: any[] = []
+    let keywords: any[] = []
     
     if (assignments && assignments.length > 0) {
       // Get unique keyword IDs
-      const keywordIds = [...new Set(assignments.map(a => a.keyword_id).filter(Boolean))]
+      keywordIds = [...new Set(assignments.map(a => a.keyword_id).filter(Boolean))]
       console.log('Unique keyword IDs:', keywordIds.length)
       
       if (keywordIds.length > 0) {
-        // Fetch all keywords in one call
-        const { data: keywords } = await supabaseClient
-          .from('d_seo_admin_raw_keywords')
-          .select('id, keyword, search_volume, intent')
-          .in('id', keywordIds)
+        // Fetch keywords in chunks of 100 to avoid .in() limit issues
+        const allKeywords: any[] = []
+        const chunkSize = 100
         
-        console.log('Keywords fetched:', keywords?.length || 0)
+        for (let i = 0; i < keywordIds.length; i += chunkSize) {
+          const chunk = keywordIds.slice(i, i + chunkSize)
+          const { data: chunkKeywords } = await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .select('id, keyword, search_volume, intent')
+            .in('id', chunk)
+          
+          if (chunkKeywords) {
+            allKeywords.push(...chunkKeywords)
+          }
+        }
+        
+        keywords = allKeywords
+        console.log('Keywords fetched (chunked):', keywords.length)
         
         // Build a map of keyword_id -> keyword data
         const keywordMap: { [id: string]: any } = {}
@@ -64,6 +77,15 @@ export async function GET() {
         console.log('Pages with keywords:', Object.keys(pageKeywordsMap).length)
       }
     }
+    
+    // Debug info - include in response
+    const debugInfo = {
+      assignmentsCount: assignments?.length || 0,
+      keywordIdsCount: keywordIds?.length || 0,
+      keywordsFetched: keywords?.length || 0,
+      pagesWithKeywords: Object.keys(pageKeywordsMap).length
+    }
+    console.log('Debug info:', debugInfo)
     
     const result: any[] = []
     const silosList = silos || []
@@ -105,7 +127,7 @@ export async function GET() {
         result.push({ id: silo.id, name: silo.name, description: silo.description, keywordCount: totalKeywords, categories })
       }
     }
-    return NextResponse.json({ silos: result })
+    return NextResponse.json({ silos: result, debug: debugInfo })
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Error fetching silos' }, { status: 500 })
   }
