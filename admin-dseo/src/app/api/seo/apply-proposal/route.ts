@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
       errors: [] as string[]
     }
 
+    // Collect all keyword IDs that are in the proposal
+    const proposalKeywordIds: string[] = []
+
     await supabase.from('d_seo_admin_raw_keywords').update({ status: 'pending' })
 
     for (const siloData of proposal.silos) {
@@ -245,6 +248,11 @@ export async function POST(request: NextRequest) {
                   console.log('Found keyword:', kwData)
 
                   if (kwData && pageId) {
+                    // Collect keyword ID for later processing
+                    if (keywordId && !proposalKeywordIds.includes(keywordId)) {
+                      proposalKeywordIds.push(keywordId)
+                    }
+                    
                     await supabase
                       .from('d_seo_admin_raw_keywords')
                       .update({ 
@@ -305,6 +313,36 @@ export async function POST(request: NextRequest) {
         .in('id', keepPendingKeywordIds)
 
       results.keywordsPending = keepPendingKeywordIds.length
+    }
+
+    // Mark pending keywords NOT in proposal as discarded (IA decided they are not relevant)
+    console.log('Proposal keyword IDs collected:', proposalKeywordIds.length)
+    
+    if (proposalKeywordIds.length > 0) {
+      const { data: pendingKeywords } = await supabase
+        .from('d_seo_admin_raw_keywords')
+        .select('id')
+        .eq('status', 'pending')
+      
+      if (pendingKeywords && pendingKeywords.length > 0) {
+        const pendingIds = pendingKeywords.map(k => k.id)
+        const toDiscard = pendingIds.filter(id => !proposalKeywordIds.includes(id))
+        
+        console.log('Pending keywords to discard:', toDiscard.length)
+        
+        if (toDiscard.length > 0) {
+          await supabase
+            .from('d_seo_admin_raw_keywords')
+            .update({ 
+              status: 'discarded',
+              discarded_at: new Date().toISOString(),
+              discarded_reason: 'Descartado automáticamente por IA - no relevante para la propuesta'
+            })
+            .in('id', toDiscard)
+          
+          results.keywordsDiscarded += toDiscard.length
+        }
+      }
     }
 
     return NextResponse.json({
