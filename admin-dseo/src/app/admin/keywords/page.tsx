@@ -46,7 +46,7 @@ export default function KeywordsPage() {
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilters, setStatusFilters] = useState<string[]>(['pending', 'clustered', 'discarded'])
+  const [statusFilters, setStatusFilters] = useState<string[]>(['pending'])
   const [showStatusFilter, setShowStatusFilter] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
   const [siloAssignedCount, setSiloAssignedCount] = useState(0)
@@ -78,7 +78,7 @@ export default function KeywordsPage() {
           .select('id', { count: 'exact', head: true }),
         supabaseClient
           .from('d_seo_admin_keyword_assignments')
-          .select('keyword_id', { count: 'exact', head: true })
+          .select('keyword_id')
       ])
 
       console.log('Keywords fetched:', keywordsRes.data?.length, 'Error:', keywordsRes.error)
@@ -92,7 +92,10 @@ export default function KeywordsPage() {
       setKeywords(keywordsRes.data || [])
       setClusters(clustersRes.data || [])
       setTotalCount(countRes.count || 0)
-      setSiloAssignedCount(siloRes.count || 0)
+      
+      // Count unique keywords in SILO (not assignments)
+      const uniqueKeywordIds = new Set((siloRes.data || []).map(a => a.keyword_id).filter(Boolean))
+      setSiloAssignedCount(uniqueKeywordIds.size)
 
       // Construir clusters existentes con sus keywords para IA (para 1)
       const clustersList = clustersRes.data || []
@@ -634,11 +637,9 @@ export default function KeywordsPage() {
           </button>
           {showStatusFilter && (
             <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-3">
-              <div className="space-y-2">
+            <div className="space-y-2">
                 {[
-                  { value: 'pending', label: 'Pendientes', color: 'bg-yellow-100 text-yellow-800' },
-                  { value: 'clustered', label: 'Clusterizadas', color: 'bg-green-100 text-green-800' },
-                  { value: 'discarded', label: 'Descartadas', color: 'bg-red-100 text-red-800' }
+                  { value: 'pending', label: 'Pendientes (disponibles)', color: 'bg-yellow-100 text-yellow-800' }
                 ].map((option) => (
                   <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
                     <input
