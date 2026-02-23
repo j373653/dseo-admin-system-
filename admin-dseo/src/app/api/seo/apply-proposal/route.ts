@@ -181,11 +181,42 @@ export async function POST(request: NextRequest) {
                   console.log('Created new page:', pageData.main_keyword, pageId)
                 }
 
-                // Now use IDs directly instead of searching by text
-                const allKeywordIds = [
-                  pageData.main_keyword_id,
-                  ...(pageData.secondary_keywords_ids || [])
-                ].filter(Boolean)
+                // Now use IDs directly, but if missing, search by text
+                let allKeywordIds: string[] = []
+                
+                // Get main keyword ID
+                if (pageData.main_keyword_id) {
+                  allKeywordIds.push(pageData.main_keyword_id)
+                } else if (pageData.main_keyword) {
+                  // Search by text if no ID
+                  const { data: mainKw } = await supabase
+                    .from('d_seo_admin_raw_keywords')
+                    .select('id')
+                    .ilike('keyword', pageData.main_keyword)
+                    .limit(1)
+                  if (mainKw && mainKw[0]) {
+                    allKeywordIds.push(mainKw[0].id)
+                  }
+                }
+                
+                // Get secondary keywords IDs
+                const secondaryIdsFromProp = pageData.secondary_keywords_ids || []
+                const secondaryTexts = pageData.secondary_keywords || []
+                
+                // Add IDs that already exist
+                allKeywordIds.push(...secondaryIdsFromProp.filter(Boolean))
+                
+                // Search by text for secondary keywords if no IDs
+                for (const secText of secondaryTexts) {
+                  const { data: secKw } = await supabase
+                    .from('d_seo_admin_raw_keywords')
+                    .select('id')
+                    .ilike('keyword', secText)
+                    .limit(1)
+                  if (secKw && secKw[0] && !allKeywordIds.includes(secKw[0].id)) {
+                    allKeywordIds.push(secKw[0].id)
+                  }
+                }
 
                 console.log('Keyword IDs to assign:', allKeywordIds, 'to page:', pageId)
 

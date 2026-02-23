@@ -16,7 +16,11 @@ export async function GET() {
 
     const context: { [key: string]: any } = {}
     for (const item of data || []) {
-      context[item.key] = item.value
+      try {
+        context[item.key] = typeof item.value === 'string' ? JSON.parse(item.value) : item.value
+      } catch (e) {
+        context[item.key] = item.value
+      }
     }
 
     return NextResponse.json({
