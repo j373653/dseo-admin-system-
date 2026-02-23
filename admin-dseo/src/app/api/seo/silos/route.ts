@@ -12,15 +12,20 @@ export async function GET() {
     }
     
     // Fetch all keyword assignments with keyword_id
-    const { data: assignments } = await supabaseClient
+    const { data: assignments, error: assignmentsError } = await supabaseClient
       .from('d_seo_admin_keyword_assignments')
       .select('id, page_id, keyword_id')
+    
+    console.log('=== SILO API DEBUG ===')
+    console.log('Assignments count:', assignments?.length || 0)
+    console.log('Assignments error:', assignmentsError)
     
     const pageKeywordsMap: { [pageId: string]: any[] } = {}
     
     if (assignments && assignments.length > 0) {
       // Get unique keyword IDs
       const keywordIds = [...new Set(assignments.map(a => a.keyword_id).filter(Boolean))]
+      console.log('Unique keyword IDs:', keywordIds.length)
       
       if (keywordIds.length > 0) {
         // Fetch all keywords in one call
@@ -28,6 +33,8 @@ export async function GET() {
           .from('d_seo_admin_raw_keywords')
           .select('id, keyword, search_volume, intent')
           .in('id', keywordIds)
+        
+        console.log('Keywords fetched:', keywords?.length || 0)
         
         // Build a map of keyword_id -> keyword data
         const keywordMap: { [id: string]: any } = {}
@@ -53,6 +60,8 @@ export async function GET() {
             })
           }
         }
+        
+        console.log('Pages with keywords:', Object.keys(pageKeywordsMap).length)
       }
     }
     
