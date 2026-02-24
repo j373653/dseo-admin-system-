@@ -221,6 +221,8 @@ ${`{
     "keyword_exacta": "informational|transactional|commercial"
   }
 }`
+  
+  try {
 
   // Configurar thinking solo para Flash (Pro no soporta disable)
   const generationConfig: any = {
