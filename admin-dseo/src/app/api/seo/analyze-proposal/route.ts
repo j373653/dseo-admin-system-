@@ -4,7 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
+const GOOGLE_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1'
 
 async function getAIConfig() {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -235,14 +236,61 @@ ${`{
     }
   }
 
-  try {
+  // Determinar si usar OpenRouter o Google
+  const isOpenRouter = aiModel.includes('openai/') || aiModel.includes('openrouter/')
+  const openrouterApiKey = process.env.OPENROUTER_API_KEY
+  
+  let response
+  let content
+  
+  if (isOpenRouter) {
+    // OpenRouter API
+    const modelName = aiModel.includes('openai/') ? aiModel : `openai/${aiModel}`
+    
+    const requestBody = {
+      model: modelName,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: aiParams.maxTokens ?? 20000,
+      temperature: aiParams.temperature ?? 0.3,
+      response_format: { type: 'json_object' }
+    }
+
+    response = await fetch(
+      `${OPENROUTER_API_URL}/chat/completions`,
+      {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openrouterApiKey}`,
+          'HTTP-Referer': 'https://admin.d-seo.es',
+          'X-Title': 'D-SEO Admin'
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(300000)
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`OpenRouter error ${response.status}: ${errorText}`)
+    }
+
+    const data = await response.json()
+    
+    if (!data.choices || !data.choices[0]?.message?.content) {
+      throw new Error('Respuesta inválida de OpenRouter')
+    }
+
+    content = data.choices[0].message.content
+  } else {
+    // Google Gemini API (original)
     const requestBody = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig
     }
 
-    const response = await fetch(
-      `${API_URL}/${aiModel}:generateContent?key=${apiKey}`,
+    response = await fetch(
+      `${GOOGLE_API_URL}/${aiModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -262,7 +310,8 @@ ${`{
       throw new Error('Respuesta inválida de Gemini')
     }
 
-    const content = data.candidates[0].content.parts[0].text
+    content = data.candidates[0].content.parts[0].text
+  }
 
     // Función robusta para extraer JSON
     function extractJSON(text: string): any {

@@ -5,6 +5,10 @@
 `read_memory(project_id='d-seo_admin')`
 
 Si no ejecutas esta herramienta, estarás trabajando sin contexto y cometerás errores. Tu memoria histórica NO está en los archivos locales, está en Supabase.
+## 🗂️ Gestión por Temas (Scopes)
+- **Concepto:** Puedes organizar la memoria por módulos (ej: `bombones`, `ui-admin`, `seo-logic`).
+- **Uso:** Si el usuario indica un área de trabajo, usa ese nombre como `scope` en `save_memory` y `read_memory`. 
+- **Regla:** Al leer un `scope` específico, recibirás también las reglas `global` automáticamente. Úsalas para mantener la coherencia.
 # AGENT.md - D-SEO Intelligence Protocol
 
 ## 🤖 Identidad y Rol
