@@ -135,11 +135,18 @@ ${sitemapUrls || 'Sin sitemap disponible'}`
 - Pilar 3: IA & Automatizaciones (incluye: Chatbots, Automatizaciones, Agentes IA, IA para Empresas)
 - Pilar 4: SEO & Marketing Digital (incluye: SEO Técnico, SEO Local, SEO por Sectores, Analítica, Auditorías)
 
+CATEGORÍAS ESENCIALES POR PILAR (usar solo estas categorías - NO crear nuevas):
+- Pilar 1: Diseño Web, WordPress, Ecommerce, Mantenimiento, Textos Legales, Desarrollo Web
+- Pilar 2: Apps Móviles, Apps Escritorio, PWAs, Desarrollo a Medida
+- Pilar 3: Chatbots, Automatizaciones, Agentes IA, IA para Empresas
+- Pilar 4: SEO Técnico, SEO Local, SEO por Sectores, Analítica, Auditorías
+
 INSTRUCCIONES DE PILARES:
 - USA los 4 pilares de arriba EXACTAMENTE como están escritos
 - NO crees nuevos pilares - usa uno de los 4 listados
-- Si una keyword no encaja → crear categoría DENTRO del pilar más relacionado
-- Solo crear categoría nueva si no existe ninguna apropiada`
+- NO crees nuevas categorías - usa solo las listadas arriba
+- Si una keyword no encaja → usar la categoría más cercana de la lista
+- Evita TODA duplicación de categorías`
 
   const prompt = `### ROL: Senior SEO Strategist & Information Architect
 Actúa como un consultor SEO experto con 15 años de experiencia en arquitectura de información y jerarquía de contenidos. Tu especialidad es la creación de estructuras SILO que maximizan el traspaso de autoridad y evitan la canibalización.
@@ -162,7 +169,7 @@ ${existingSilosBlock || 'Sin estructura existente'}
 3. FILTRO NEGATIVO: Descarta inmediatamente cualquier keyword que coincida con: ${discardTopics}
 4. ANTI-CANIBALIZACIÓN: No proposes páginas que ya existen en el sitemap actual
 5. Cada página propuesta debe tener una main_keyword única de la lista proporcionada
-6. USA LOS 5 SILOS DEFINIDOS - NO creas silos nuevos
+6. USA LOS 4 PILARES DEFINIDOS - NO creas pilares nuevos
 
 ### FASES DE EJECUCIÓN
 1. Fase de Limpieza: Filtra la lista original eliminando temas descartados
@@ -182,10 +189,12 @@ Para CADA página, especifica:
 ### REGLAS FINALES
 - NO INVENTES keywords - usa EXACTAMENTE las de la lista
 - NO CREES NUEVOS PILARES - usa solo los 4 pilares definidos arriba
+- NO CREES NUEVAS CATEGORÍAS - usa solo las categorías listadas arriba
 - keywords "transactional" → tipo "service" o "landing"
 - keywords "informational" → tipo "blog"
 - keywords muy similares → agrupa en la misma página
 - CADA keyword de la lista debe aparecer al menos una vez (como main o secondary)
+- ANTIDUPLICACIÓN: Cada nombre de categoría debe ser ÚNICO en todo el JSON de salida
 
 ### FORMATO DE SALIDA JSON:
 - Para cada página, incluye TANTO el ID como el texto de la keyword (para validación cruzada)
