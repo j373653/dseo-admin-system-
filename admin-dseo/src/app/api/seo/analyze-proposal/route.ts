@@ -239,15 +239,16 @@ ${`{
   }
 
   // Determinar si usar OpenRouter o Google
-  const isOpenRouter = aiModel.includes('openai/') || aiModel.includes('openrouter/')
+  // OpenRouter models: openai/*, openrouter/*, provider/model:free, etc.
+  const isOpenRouter = aiModel.includes('openai/') || aiModel.includes('openrouter/') || aiModel.includes('/') || aiModel.includes(':free')
   const openrouterApiKey = process.env.OPENROUTER_API_KEY
   
   let response
   let content
   
   if (isOpenRouter) {
-    // OpenRouter API
-    const modelName = aiModel.includes('openai/') ? aiModel : `openai/${aiModel}`
+    // OpenRouter API - modelos ya tienen prefijo como "openai/", "arcee-ai/", etc.
+    const modelName = aiModel
     
     const requestBody = {
       model: modelName,
