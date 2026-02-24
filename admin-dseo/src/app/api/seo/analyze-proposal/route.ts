@@ -128,18 +128,17 @@ async function analyzeSilosWithGemini(
 SITEMAP ACTUAL DEL SITIO WEB (evitar duplicar contenido existente):
 ${sitemapUrls || 'Sin sitemap disponible'}`
 
-  // Lista de silos válidos predefinidos (estructura consolidada)
-  const validSilos = `SILOS VÁLIDOS Y OBLIGATORIOS (usar estos silos existentes):
-- Desarrollo Web (incluye: WordPress, E-commerce, Apps, Diseño Web, Blog, Digitalización)
-- SEO (Posicionamiento Web) (incluye: SEO, Analítica, Auditorías)
-- Inteligencia Artificial (incluye: IA, Automatización, Chatbots)
-- Marketing Digital (incluye: Estrategia, Contenido, Redes)
-- Textos Legales Web (incluye: RGPD, Políticas, Legal)
+  // Lista de pilares válidos predefinidos (estructura consolidada a 4 pilares)
+  const validSilos = `PILARES VÁLIDOS Y OBLIGATORIOS (usar estos 4 pilares existentes):
+- Pilar 1: Desarrollo Web & E-commerce (incluye: WordPress, Tiendas Online, Mantenimiento, Legal, Diseño Web)
+- Pilar 2: Aplicaciones & Software (incluye: Apps iOS/Android, Apps Escritorio, PWAs, Desarrollo a Medida)
+- Pilar 3: IA & Automatizaciones (incluye: Chatbots, Automatizaciones, Agentes IA, IA para Empresas)
+- Pilar 4: SEO & Marketing Digital (incluye: SEO Técnico, SEO Local, SEO por Sectores, Analítica, Auditorías)
 
-INSTRUCCIONES DE SILOS:
-- USA los silos de arriba EXACTAMENTE como están escritos
-- NO crees nuevos silos - usa uno de los 5 silos listados
-- Si una keyword no encaja → crear categoría DENTRO del silo más relacionado
+INSTRUCCIONES DE PILARES:
+- USA los 4 pilares de arriba EXACTAMENTE como están escritos
+- NO crees nuevos pilares - usa uno de los 4 listados
+- Si una keyword no encaja → crear categoría DENTRO del pilar más relacionado
 - Solo crear categoría nueva si no existe ninguna apropiada`
 
   const prompt = `### ROL: Senior SEO Strategist & Information Architect
@@ -170,7 +169,7 @@ ${existingSilosBlock || 'Sin estructura existente'}
 2. Fase de Clustering: Agrupa las keywords por intención de búsqueda y temática
 3. Fase de Arquitectura: Asigna cada keyword a un SILO existente y crea categorías dentro si es necesario
 
-### ESTRUCTURA SILO - USAR SOLO LOS 5 SILOS DEFINIDOS
+### ESTRUCTURA PILAR - USAR SOLO LOS 4 PILARES DEFINIDOS
 ${validSilos}
 
 Para CADA página, especifica:
@@ -182,7 +181,7 @@ Para CADA página, especifica:
 
 ### REGLAS FINALES
 - NO INVENTES keywords - usa EXACTAMENTE las de la lista
-- NO CREES NUEVOS SILOS - usa solo los 5 silos definidos arriba
+- NO CREES NUEVOS PILARES - usa solo los 4 pilares definidos arriba
 - keywords "transactional" → tipo "service" o "landing"
 - keywords "informational" → tipo "blog"
 - keywords muy similares → agrupa en la misma página
