@@ -424,11 +424,11 @@ ${`{
           for (const page of cat.pages) {
             // OPCIÓN A: Matching híbrido - intentar ID primero, luego por texto
             let keywordId = page.main_keyword_id
-            let mainKeywordText = page.main_keyword || ''
+            let mainKeywordText = page.main_keyword ? String(page.main_keyword) : ''
             
             // Si el ID no es válido, buscar por texto (matching flexible)
             if (!keywordId || !validKeywordIds.has(keywordId)) {
-              if (mainKeywordText) {
+              if (mainKeywordText && mainKeywordText.trim()) {
                 const mainTextLower = mainKeywordText.toLowerCase().trim()
                 // Primero buscar coincidencia exacta
                 let match = keywords.find(k => 
@@ -457,18 +457,19 @@ ${`{
             
             // Validar secondary keywords IDs - también intentar matching por texto
             const secondaryIds: string[] = []
-            const secondaryTexts = page.secondary_keywords || []
-            const secondaryIdTexts = page.secondary_keywords_ids || []
+            const secondaryTexts = page.secondary_keywords ? (Array.isArray(page.secondary_keywords) ? page.secondary_keywords : [page.secondary_keywords]) : []
+            const secondaryIdTexts = page.secondary_keywords_ids ? (Array.isArray(page.secondary_keywords_ids) ? page.secondary_keywords_ids : [page.secondary_keywords_ids]) : []
             
             // Por cada secondary, primero intentar por ID exacto
             for (const secId of secondaryIdTexts) {
-              if (validKeywordIds.has(secId)) {
+              if (secId && validKeywordIds.has(secId)) {
                 secondaryIds.push(secId)
               }
             }
             // Buscar por texto los que no se encontraron por ID - matching flexible
             for (const secText of secondaryTexts) {
-              const secTextLower = secText.toLowerCase().trim()
+              if (!secText) continue
+              const secTextLower = String(secText).toLowerCase().trim()
               // Primero buscar coincidencia exacta
               let match = keywords.find(k => 
                 k.keyword.toLowerCase().trim() === secTextLower
