@@ -125,8 +125,22 @@ async function analyzeSilosWithGemini(
 - CLIENTES OBJETIVO: ${targetCompanies}
 - TEMÁTICAS A DESCARTAR (NO trabajar con estas): ${discardTopics}
 
-SITEMS ACTUALES DEL SITEMAP (evitar duplicar contenido existente):
+SITEMAP ACTUAL DEL SITIO WEB (evitar duplicar contenido existente):
 ${sitemapUrls || 'Sin sitemap disponible'}`
+
+  // Lista de silos válidos predefinidos (estructura consolidada)
+  const validSilos = `SILOS VÁLIDOS Y OBLIGATORIOS (usar estos silos existentes):
+- Desarrollo Web (incluye: WordPress, E-commerce, Apps, Diseño Web, Blog, Digitalización)
+- SEO (Posicionamiento Web) (incluye: SEO, Analítica, Auditorías)
+- Inteligencia Artificial (incluye: IA, Automatización, Chatbots)
+- Marketing Digital (incluye: Estrategia, Contenido, Redes)
+- Textos Legales Web (incluye: RGPD, Políticas, Legal)
+
+INSTRUCCIONES DE SILOS:
+- USA los silos de arriba EXACTAMENTE como están escritos
+- NO crees nuevos silos - usa uno de los 5 silos listados
+- Si una keyword no encaja → crear categoría DENTRO del silo más relacionado
+- Solo crear categoría nueva si no existe ninguna apropiada`
 
   const prompt = `### ROL: Senior SEO Strategist & Information Architect
 Actúa como un consultor SEO experto con 15 años de experiencia en arquitectura de información y jerarquía de contenidos. Tu especialidad es la creación de estructuras SILO que maximizan el traspaso de autoridad y evitan la canibalización.
@@ -138,7 +152,7 @@ El objetivo es diseñar una PROPUESTA DE ESTRUCTURA SILO lógica y optimizada ut
 1. PALABRAS CLAVE A ANALIZAR (SOLO estas, NO inventes):
 ${keywordList}
 
-2. ESTRUCTURA ACTUAL / SITEMAP:
+2. ESTRUCTURA ACTUAL (para referencia):
 ${existingSilosBlock || 'Sin estructura existente'}
 
 3. TEMAS A DESCARTAR: ${discardTopics}
@@ -148,19 +162,16 @@ ${existingSilosBlock || 'Sin estructura existente'}
 2. Las secondary_keywords DEBEN ser keywords de la lista proporcionada
 3. FILTRO NEGATIVO: Descarta inmediatamente cualquier keyword que coincida con: ${discardTopics}
 4. ANTI-CANIBALIZACIÓN: No proposes páginas que ya existen en el sitemap actual
-5. PRIORIZACIÓN: Da preferencia a keywords que representen servicios o categorías que NO estén en el sitemap actual
-6. Cada página propuesta debe tener una main_keyword única de la lista proporcionada
+5. Cada página propuesta debe tener una main_keyword única de la lista proporcionada
+6. USA LOS 5 SILOS DEFINIDOS - NO creas silos nuevos
 
 ### FASES DE EJECUCIÓN
-1. Fase de Limpieza: Filtra la lista original eliminando temas descartados y keywords del sitemap
-2. Fase de Clustering: Agrupa las keywords restantes por intención de búsqueda y temática
-3. Fase de Arquitectura: Define qué keywords funcionarán como "Páginas Pilar" y cuáles como "Páginas de Soporte"
-4. Fase de Verificación: Asegúrate de que ninguna keyword secundaria se repita en diferentes páginas
+1. Fase de Limpieza: Filtra la lista original eliminando temas descartados
+2. Fase de Clustering: Agrupa las keywords por intención de búsqueda y temática
+3. Fase de Arquitectura: Asigna cada keyword a un SILO existente y crea categorías dentro si es necesario
 
-### ESTRUCTURA SILO
-- SILO (Tema principal): Grupo de categoría de nivel superior
-- CATEGORÍA: Sub-tema dentro del silo
-- PÁGINA: Página de contenido específica
+### ESTRUCTURA SILO - USAR SOLO LOS 5 SILOS DEFINIDOS
+${validSilos}
 
 Para CADA página, especifica:
 - main_keyword: Keyword principal (OBLIGATORIO: debe estar en la lista de PALABRAS CLAVE A ANALIZAR)
@@ -171,7 +182,7 @@ Para CADA página, especifica:
 
 ### REGLAS FINALES
 - NO INVENTES keywords - usa EXACTAMENTE las de la lista
-- Crea TODOS los silos que sean necesarios para cubrir todas las keywords proporcionadas
+- NO CREES NUEVOS SILOS - usa solo los 5 silos definidos arriba
 - keywords "transactional" → tipo "service" o "landing"
 - keywords "informational" → tipo "blog"
 - keywords muy similares → agrupa en la misma página
