@@ -200,6 +200,26 @@ Para CADA página, especifica:
 - Es MEJOR tener muchas secondary_keywords en UNA página que la misma keyword en VARIAS páginas
 - Las keywords muy similares (misma raíz, plural/singular, variaciones) deben IR JUNTAS en la misma página
 
+### EJEMPLO DE GROUPING DE KEYWORDS SIMILARES (OBLIGATORIO SEGUIR):
+**MAL (canibalización):**
+- "crear pagina web con ia" → página 1
+- "crea pagina web con ia" → página 2
+- "crear páginas web con ia" → página 3
+
+**BIEN (una página para todas):**
+- "crear pagina web con ia", "crea pagina web con ia", "crear páginas web con ia" → UNA SOLA página con main_keyword="crear pagina web con ia" y secondary_keywords=["crea pagina web con ia", "crear páginas web con ia", ...]
+
+**LISTA DE VARIACIONES COMUNES A AGRUPAR:**
+- crear/crea/creo/creado
+- pagina/páginas/pagina web/paginas web
+- web/sitio web/sitio
+- con ia/con inteligencia artificial
+- hacer/haz/realiza
+- una/--
+- con/sin
+
+**NORMA: Si dos keywords comparten ≥3 palabras significativas, van a la MISMA página.**
+
 ### FORMATO DE SALIDA JSON:
 - Para cada página, incluye TANTO el ID como el texto de la keyword (para validación cruzada)
 - Formato: "main_keyword_id": "uuid-aqui", "main_keyword": "texto de la keyword"
