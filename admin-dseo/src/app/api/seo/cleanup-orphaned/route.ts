@@ -14,21 +14,7 @@ export async function POST(request: NextRequest) {
       errors: [] as string[]
     }
 
-    // 1. Find keyword assignments where page_id no longer exists
-    const { data: orphanedAssignments, error: findError } = await supabase
-      .from('d_seo_admin_keyword_assignments')
-      .select('id, keyword_id')
-      .in(
-        'page_id',
-        supabase.from('d_seo_admin_pages').select('id').then(({ data }) => data?.map(p => p.id) || [])
-      )
-
-    if (findError) {
-      console.error('Error finding orphaned assignments:', findError)
-      return NextResponse.json({ error: findError.message }, { status: 500 })
-    }
-
-    // Get all assignments and filter in memory
+    // Get all assignments and pages to find orphaned ones
     const { data: allAssignments } = await supabase
       .from('d_seo_admin_keyword_assignments')
       .select('id, keyword_id, page_id')
@@ -39,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     const pageIds = new Set(allPages?.map(p => p.id) || [])
     
-    // Find orphaned assignments (where page_id doesn't exist)
+    // Find orphaned assignments (where page_id doesn't exist or is null)
     const orphaned = (allAssignments || []).filter(a => !a.page_id || !pageIds.has(a.page_id))
     const orphanedIds = orphaned.map(a => a.id)
     const keywordIdsFromOrphaned = [...new Set(orphaned.map(a => a.keyword_id).filter(Boolean))]
