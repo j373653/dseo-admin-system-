@@ -593,6 +593,15 @@ export default function KeywordsPage() {
               Ver Silos
             </button>
           </Link>
+          <button
+            onClick={cleanupOrphaned}
+            disabled={actionLoading}
+            className="flex items-center space-x-1 px-3 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+            title="Limpiar keywords huérfanas"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Limpiar huérfanas</span>
+          </button>
           {/* Botón clusters obsoleto - temporalmente oculto */}
           {/* 
           <button
@@ -631,15 +640,6 @@ export default function KeywordsPage() {
             >
               <RefreshCw className="w-4 h-4" />
               <span>Reactivar (→ pending)</span>
-            </button>
-            <button
-              onClick={cleanupOrphaned}
-              disabled={actionLoading}
-              className="flex items-center space-x-1 px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
-              title="Limpiar keywords huérfanas"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Limpiar huérfanas</span>
             </button>
             <button
               onClick={removeFromCluster}
