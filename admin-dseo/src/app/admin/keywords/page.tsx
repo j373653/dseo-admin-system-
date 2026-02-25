@@ -217,6 +217,31 @@ export default function KeywordsPage() {
     }
   }
 
+  const cleanupOrphaned = async () => {
+    if (!confirm('¿Limpiar keywords huérfanas? Esto reactivará keywords que perdieron su página/silo/categoría.')) return
+
+    setActionLoading(true)
+    try {
+      const res = await fetch('/api/seo/cleanup-orphaned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        await fetchData()
+        alert(`Limpieza completada:\n• ${data.results.orphanedAssignmentsDeleted} assignments huérfanos eliminados\n• ${data.results.keywordsReactivated} keywords reactivadas a pending\n• Total pending ahora: ${data.counts.pending}`)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (err) {
+      console.error('Error:', err)
+      alert('Error al limpiar keywords huérfanas')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const desclusterizeAll = async () => {
     const clusteredCount = keywords.filter(k => k.status === 'clustered').length
     if (clusteredCount === 0) {
@@ -606,6 +631,15 @@ export default function KeywordsPage() {
             >
               <RefreshCw className="w-4 h-4" />
               <span>Reactivar (→ pending)</span>
+            </button>
+            <button
+              onClick={cleanupOrphaned}
+              disabled={actionLoading}
+              className="flex items-center space-x-1 px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
+              title="Limpiar keywords huérfanas"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Limpiar huérfanas</span>
             </button>
             <button
               onClick={removeFromCluster}
