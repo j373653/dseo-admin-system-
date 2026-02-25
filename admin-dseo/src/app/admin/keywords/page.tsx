@@ -242,6 +242,34 @@ export default function KeywordsPage() {
     }
   }
 
+  const resetAll = async () => {
+    if (!confirm('⚠️ ¿ELIMINAR TODO?\n\nEsto borrará:\n- Todos los silos\n- Todas las categorías\n- Todas las páginas\n- Todos los assignments\n\nLas keywords pasarán a pending.\n\nEsta acción NO se puede deshacer.')) return
+
+    if (!confirm('¿Estás TOTALMENTE seguro? Esta acción es irreversible.')) return
+
+    setActionLoading(true)
+    try {
+      const res = await fetch('/api/seo/reset-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET_ALL' })
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        await fetchData()
+        alert(`✅ Todo eliminado:\n• ${data.results.silosDeleted} silos\n• ${data.results.categoriesDeleted} categorías\n• ${data.results.pagesDeleted} páginas\n• ${data.results.assignmentsDeleted} assignments\n• ${data.results.keywordsReactivated} keywords reactivadas a pending`)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (err) {
+      console.error('Error:', err)
+      alert('Error al resetear todo')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const desclusterizeAll = async () => {
     const clusteredCount = keywords.filter(k => k.status === 'clustered').length
     if (clusteredCount === 0) {
@@ -601,6 +629,15 @@ export default function KeywordsPage() {
           >
             <Sparkles className="w-4 h-4" />
             <span>Limpiar huérfanas</span>
+          </button>
+          <button
+            onClick={resetAll}
+            disabled={actionLoading}
+            className="flex items-center space-x-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            title="Eliminar TODO y empezar de cero"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Reset Total</span>
           </button>
           {/* Botón clusters obsoleto - temporalmente oculto */}
           {/* 
