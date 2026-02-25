@@ -220,6 +220,13 @@ Para CADA página, especifica:
 
 **NORMA: Si dos keywords comparten ≥3 palabras significativas, van a la MISMA página.**
 
+### 🚨 REGLA OBLIGATORIA: TODAS LAS KEYWORDS
+- **DEBES incluir TODAS las keywords de la lista de entrada en la propuesta**
+- NO puedes ignorar ninguna keyword
+- Si una keyword no encaja en ninguna categoría → asígnala a la categoría más genérica
+- Si una keyword NO es relevante para el negocio → inclúyela en una página existente como secondary_keyword (no crees páginas solo para descartar)
+- **Keywords que la IA ignora serán marcadas como error**
+
 ### FORMATO DE SALIDA JSON:
 - Para cada página, incluye TANTO el ID como el texto de la keyword (para validación cruzada)
 - Formato: "main_keyword_id": "uuid-aqui", "main_keyword": "texto de la keyword"

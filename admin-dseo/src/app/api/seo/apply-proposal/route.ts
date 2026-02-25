@@ -379,41 +379,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark pending keywords NOT in proposal as discarded (IA decided they are not relevant)
-    // Only discard keywords that are NOT in keepPendingKeywordIds
+    // Get ALL pending keywords (not just those in proposal)
     console.log('Proposal keyword IDs collected:', proposalKeywordIds.length)
     console.log('Keep pending keyword IDs:', keepPendingKeywordIds?.length)
     
-    if (proposalKeywordIds.length > 0) {
-      // Get all pending keywords
-      const { data: pendingKeywords } = await supabase
-        .from('d_seo_admin_raw_keywords')
-        .select('id')
-        .eq('status', 'pending')
+    // Get all pending keywords
+    const { data: pendingKeywords } = await supabase
+      .from('d_seo_admin_raw_keywords')
+      .select('id')
+      .eq('status', 'pending')
+    
+    if (pendingKeywords && pendingKeywords.length > 0) {
+      const pendingIds = pendingKeywords.map(k => k.id)
       
-      if (pendingKeywords && pendingKeywords.length > 0) {
-        const pendingIds = pendingKeywords.map(k => k.id)
+      // Keywords to discard = pending but NOT in proposal AND NOT in keepPending
+      const keepPendingSet = new Set(keepPendingKeywordIds || [])
+      const toDiscard = pendingIds.filter(id => 
+        !proposalKeywordIds.includes(id) && 
+        !keepPendingSet.has(id)
+      )
+      
+      console.log('Pending keywords to discard:', toDiscard.length)
+      
+      if (toDiscard.length > 0) {
+        await supabase
+          .from('d_seo_admin_raw_keywords')
+          .update({ 
+            status: 'discarded',
+            discarded_at: new Date().toISOString(),
+            discarded_reason: 'Descartado automáticamente por IA - no relevante para la propuesta'
+          })
+          .in('id', toDiscard)
         
-        // Keywords to discard = pending but NOT in proposal AND NOT in keepPending
-        const keepPendingSet = new Set(keepPendingKeywordIds || [])
-        const toDiscard = pendingIds.filter(id => 
-          !proposalKeywordIds.includes(id) && 
-          !keepPendingSet.has(id)
-        )
-        
-        console.log('Pending keywords to discard:', toDiscard.length)
-        
-        if (toDiscard.length > 0) {
-          await supabase
-            .from('d_seo_admin_raw_keywords')
-            .update({ 
-              status: 'discarded',
-              discarded_at: new Date().toISOString(),
-              discarded_reason: 'Descartado automáticamente por IA - no relevante para la propuesta'
-            })
-            .in('id', toDiscard)
-          
-          results.keywordsDiscarded += toDiscard.length
-        }
+        results.keywordsDiscarded += toDiscard.length
       }
     }
 
