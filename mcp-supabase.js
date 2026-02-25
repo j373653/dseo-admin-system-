@@ -43,12 +43,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const scope = args.scope || 'global';
 
   if (name === "save_memory_scoped") {
-    await fetch(`${SUPABASE_URL}/rest/v1/memories`, {
-      method: 'POST',
-      headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...args, scope })
-    });
-    return { content: [{ type: "text", text: `✅ Guardado en tema: ${scope}` }] };
+    console.log('[save_memory_scoped] Args:', JSON.stringify(args));
+    console.log('[save_memory_scoped] Scope:', scope);
+    
+    try {
+      const saveResponse = await fetch(`${SUPABASE_URL}/rest/v1/memories`, {
+        method: 'POST',
+        headers: { 
+          'apikey': ANON_KEY, 
+          'Authorization': `Bearer ${ANON_KEY}`, 
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ 
+          project_id: args.project_id, 
+          category: args.category, 
+          content: args.content,
+          scope: scope
+        })
+      });
+      
+      console.log('[save_memory_scoped] Status:', saveResponse.status);
+      
+      if (!saveResponse.ok) {
+        const errorText = await saveResponse.text();
+        console.error('[save_memory_scoped] Error:', errorText);
+        return { content: [{ type: "text", text: `❌ Error guardando: ${saveResponse.status} - ${errorText}` }] };
+      }
+      
+      return { content: [{ type: "text", text: `✅ Guardado en tema: ${scope} (project: ${args.project_id})` }] };
+    } catch (err) {
+      console.error('[save_memory_scoped] Exception:', err);
+      return { content: [{ type: "text", text: `❌ Error: ${err.message}` }] };
+    }
   }
 
   if (name === "read_memory_scoped") {
