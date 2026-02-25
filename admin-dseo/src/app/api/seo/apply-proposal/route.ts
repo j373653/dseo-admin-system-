@@ -316,6 +316,14 @@ export async function POST(request: NextRequest) {
                       })
                       .eq('id', kwData.id)
 
+                    // ANTI-CANIBALIZACIÓN: Eliminar asignaciones anteriores de esta keyword a otras páginas
+                    await supabase
+                      .from('d_seo_admin_keyword_assignments')
+                      .delete()
+                      .eq('keyword_id', kwData.id)
+                      .neq('page_id', pageId)
+
+                    // Crear nueva asignación
                     await supabase
                       .from('d_seo_admin_keyword_assignments')
                       .upsert({
