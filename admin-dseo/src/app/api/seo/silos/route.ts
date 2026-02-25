@@ -168,27 +168,32 @@ export async function DELETE(req: NextRequest) {
       if (pages && pages.length > 0) {
         const pageIds = pages.map(p => p.id)
         
+        // PRIMERO: Obtener keyword_ids de los assignments ANTES de eliminarlos
+        const { data: assignmentsToDelete } = await supabaseClient
+          .from('d_seo_admin_keyword_assignments')
+          .select('keyword_id')
+          .in('page_id', pageIds)
+        
+        // Guardar keyword_ids para pasar a pending después
+        let keywordIdsToPending: string[] = []
+        if (assignmentsToDelete && assignmentsToDelete.length > 0) {
+          keywordIdsToPending = assignmentsToDelete
+            .map((a: any) => a.keyword_id)
+            .filter(Boolean)
+        }
+        
         // Eliminar keyword_assignments de estas páginas
         await supabaseClient
           .from('d_seo_admin_keyword_assignments')
           .delete()
           .in('page_id', pageIds)
         
-        // Obtener keyword_ids para pasarlos a pending (ya que se eliminaron los assignments)
-        const { data: deletedAssignments } = await supabaseClient
-          .from('d_seo_admin_keyword_assignments')
-          .select('keyword_id')
-          .in('page_id', pageIds)
-        
-        // Pasar keywords a pending
-        if (deletedAssignments && deletedAssignments.length > 0) {
-          const keywordIds = deletedAssignments.map((a: any) => a.keyword_id).filter(Boolean)
-          if (keywordIds.length > 0) {
-            await supabaseClient
-              .from('d_seo_admin_raw_keywords')
-              .update({ status: 'pending' })
-              .in('id', keywordIds)
-          }
+        // Pasar keywords a pending (ya tenemos los IDs)
+        if (keywordIdsToPending.length > 0) {
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ status: 'pending' })
+            .in('id', keywordIdsToPending)
         }
         
         // Eliminar páginas
