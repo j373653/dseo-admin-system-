@@ -164,7 +164,7 @@ export default function ProposalPage() {
 
     // Interval para mostrar progreso
     let progressInterval: NodeJS.Timeout | undefined = undefined
-    if (keywordIds.length > 40) {
+    if (keywordIds.length > 0) {
       let batchCounter = 0
       progressInterval = setInterval(() => {
         batchCounter++

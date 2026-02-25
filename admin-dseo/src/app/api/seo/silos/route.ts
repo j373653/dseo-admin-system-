@@ -150,6 +150,45 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
     
+    // Obtener categorías del silo
+    const { data: categories } = await supabaseClient
+      .from('d_seo_admin_categories')
+      .select('id')
+      .eq('silo_id', id)
+    
+    if (categories && categories.length > 0) {
+      const categoryIds = categories.map(c => c.id)
+      
+      // Obtener páginas de estas categorías
+      const { data: pages } = await supabaseClient
+        .from('d_seo_admin_pages')
+        .select('id')
+        .in('category_id', categoryIds)
+      
+      if (pages && pages.length > 0) {
+        const pageIds = pages.map(p => p.id)
+        
+        // Eliminar keyword_assignments de estas páginas
+        await supabaseClient
+          .from('d_seo_admin_keyword_assignments')
+          .delete()
+          .in('page_id', pageIds)
+        
+        // Eliminar páginas
+        await supabaseClient
+          .from('d_seo_admin_pages')
+          .delete()
+          .in('category_id', categoryIds)
+      }
+      
+      // Eliminar categorías
+      await supabaseClient
+        .from('d_seo_admin_categories')
+        .delete()
+        .in('id', categoryIds)
+    }
+    
+    // Ahora eliminar el silo
     const { error } = await supabaseClient.from('d_seo_admin_silos').delete().eq('id', id)
     if (error) throw new Error(error.message)
     return NextResponse.json({ success: true })
