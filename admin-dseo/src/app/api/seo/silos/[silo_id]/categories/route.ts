@@ -51,6 +51,46 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
     
+    // Obtener páginas de esta categoría
+    const { data: pages } = await supabaseClient
+      .from('d_seo_admin_pages')
+      .select('id')
+      .eq('category_id', id)
+    
+    if (pages && pages.length > 0) {
+      const pageIds = pages.map(p => p.id)
+      
+      // Obtener keyword assignments de estas páginas
+      const { data: assignments } = await supabaseClient
+        .from('d_seo_admin_keyword_assignments')
+        .select('keyword_id')
+        .in('page_id', pageIds)
+      
+      // Eliminar keyword assignments
+      await supabaseClient
+        .from('d_seo_admin_keyword_assignments')
+        .delete()
+        .in('page_id', pageIds)
+      
+      // Pasar keywords a pending
+      if (assignments && assignments.length > 0) {
+        const keywordIds = assignments.map((a: any) => a.keyword_id).filter(Boolean)
+        if (keywordIds.length > 0) {
+          await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .update({ status: 'pending' })
+            .in('id', keywordIds)
+        }
+      }
+      
+      // Eliminar páginas
+      await supabaseClient
+        .from('d_seo_admin_pages')
+        .delete()
+        .in('id', pageIds)
+    }
+    
+    // Ahora eliminar la categoría
     const { error } = await supabaseClient.from('d_seo_admin_categories').delete().eq('id', id)
     if (error) throw new Error(error.message)
     return NextResponse.json({ success: true })
