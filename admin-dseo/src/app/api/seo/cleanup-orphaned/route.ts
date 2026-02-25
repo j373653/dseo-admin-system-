@@ -11,80 +11,143 @@ export async function POST(request: NextRequest) {
     const results = {
       orphanedAssignmentsDeleted: 0,
       keywordsReactivated: 0,
+      pagesDeleted: 0,
       errors: [] as string[]
     }
 
-    // Get all assignments and pages to find orphaned ones
+    // Get all data to analyze relationships
     const { data: allAssignments } = await supabase
       .from('d_seo_admin_keyword_assignments')
       .select('id, keyword_id, page_id')
 
     const { data: allPages } = await supabase
       .from('d_seo_admin_pages')
+      .select('id, category_id')
+
+    const { data: allCategories } = await supabase
+      .from('d_seo_admin_categories')
+      .select('id, silo_id')
+
+    const { data: allSilos } = await supabase
+      .from('d_seo_admin_silos')
       .select('id')
 
+    // Build sets for fast lookup
     const pageIds = new Set(allPages?.map(p => p.id) || [])
+    const categoryIds = new Set(allCategories?.map(c => c.id) || [])
+    const siloIds = new Set(allSilos?.map(s => s.id) || [])
     
-    // Find orphaned assignments (where page_id doesn't exist or is null)
-    const orphaned = (allAssignments || []).filter(a => !a.page_id || !pageIds.has(a.page_id))
-    const orphanedIds = orphaned.map(a => a.id)
-    const keywordIdsFromOrphaned = [...new Set(orphaned.map(a => a.keyword_id).filter(Boolean))]
+    // Create category_id -> silo_id map
+    const categoryToSilo = new Map<string, string>()
+    for (const cat of (allCategories || [])) {
+      categoryToSilo.set(cat.id, cat.silo_id)
+    }
 
-    if (orphanedIds.length > 0) {
-      // Delete orphaned assignments
+    // Create page_id -> category_id map
+    const pageToCategory = new Map<string, string>()
+    for (const page of (allPages || [])) {
+      pageToCategory.set(page.id, page.category_id)
+    }
+
+    // SCENARIO 1: Find assignments to pages whose category's silo doesn't exist
+    const orphanedByDeletedSilo: string[] = []
+    const orphanedByDeletedCategory: string[] = []
+    const orphanedPageIds: string[] = []
+
+    for (const assignment of (allAssignments || [])) {
+      if (!assignment.page_id) continue
+      
+      const categoryId = pageToCategory.get(assignment.page_id)
+      if (!categoryId) {
+        orphanedByDeletedCategory.push(assignment.id)
+        if (!orphanedPageIds.includes(assignment.page_id)) {
+          orphanedPageIds.push(assignment.page_id)
+        }
+        continue
+      }
+      
+      const siloId = categoryToSilo.get(categoryId)
+      if (!siloId || !siloIds.has(siloId)) {
+        orphanedByDeletedSilo.push(assignment.id)
+        if (!orphanedPageIds.includes(assignment.page_id)) {
+          orphanedPageIds.push(assignment.page_id)
+        }
+      }
+    }
+
+    // Delete orphaned assignments and their pages
+    const allOrphanedAssignmentIds = [...orphanedByDeletedSilo, ...orphanedByDeletedCategory]
+    const uniqueOrphanedAssignmentIds = [...new Set(allOrphanedAssignmentIds)]
+    
+    if (uniqueOrphanedAssignmentIds.length > 0) {
       const { error: deleteError } = await supabase
         .from('d_seo_admin_keyword_assignments')
         .delete()
-        .in('id', orphanedIds)
+        .in('id', uniqueOrphanedAssignmentIds)
       
       if (deleteError) {
         results.errors.push(`Error deleting orphaned assignments: ${deleteError.message}`)
       } else {
-        results.orphanedAssignmentsDeleted = orphanedIds.length
+        results.orphanedAssignmentsDeleted = uniqueOrphanedAssignmentIds.length
       }
     }
 
-    // 2. Find keywords in 'clustered' status with no valid assignments
+    // Delete orphaned pages
+    if (orphanedPageIds.length > 0) {
+      const { error: pageDeleteError } = await supabase
+        .from('d_seo_admin_pages')
+        .delete()
+        .in('id', orphanedPageIds)
+      
+      if (!pageDeleteError) {
+        results.pagesDeleted = orphanedPageIds.length
+      }
+    }
+
+    // Get unique keyword IDs from deleted assignments
+    const keywordIdsFromOrphaned = [...new Set(
+      (allAssignments || [])
+        .filter(a => uniqueOrphanedAssignmentIds.includes(a.id))
+        .map(a => a.keyword_id)
+        .filter(Boolean)
+    )]
+
+    // SCENARIO 2: Find keywords in 'clustered' status whose page's category has no silo
     const { data: clusteredKeywords } = await supabase
       .from('d_seo_admin_raw_keywords')
       .select('id')
       .eq('status', 'clustered')
 
-    const assignedKeywordIds = new Set((allAssignments || []).map(a => a.keyword_id).filter(Boolean))
-    
-    const needsReactivation = (clusteredKeywords || []).filter(
+    const assignedKeywordIds = new Set(
+      (allAssignments || [])
+        .map(a => a.keyword_id)
+        .filter(Boolean)
+    )
+
+    // Keywords clustered but not in any assignment
+    const clusteredWithoutAssignment = (clusteredKeywords || []).filter(
       kw => !assignedKeywordIds.has(kw.id)
     ).map(kw => kw.id)
 
-    if (needsReactivation.length > 0) {
-      // Update these keywords to pending
+    const allKeywordIdsToReactivate = [
+      ...keywordIdsFromOrphaned,
+      ...clusteredWithoutAssignment
+    ]
+    const uniqueKeywordIdsToReactivate = [...new Set(allKeywordIdsToReactivate)]
+
+    if (uniqueKeywordIdsToReactivate.length > 0) {
       const { error: updateError } = await supabase
         .from('d_seo_admin_raw_keywords')
         .update({ 
           status: 'pending',
           updated_at: new Date().toISOString()
         })
-        .in('id', needsReactivation)
+        .in('id', uniqueKeywordIdsToReactivate)
       
       if (updateError) {
         results.errors.push(`Error reactivating keywords: ${updateError.message}`)
       } else {
-        results.keywordsReactivated = needsReactivation.length
-      }
-    }
-
-    // Also reactivate from the orphaned assignments we just deleted
-    if (keywordIdsFromOrphaned.length > 0) {
-      const { error: updateError2 } = await supabase
-        .from('d_seo_admin_raw_keywords')
-        .update({ 
-          status: 'pending',
-          updated_at: new Date().toISOString()
-        })
-        .in('id', keywordIdsFromOrphaned)
-      
-      if (!updateError2) {
-        results.keywordsReactivated += keywordIdsFromOrphaned.length
+        results.keywordsReactivated = uniqueKeywordIdsToReactivate.length
       }
     }
 
