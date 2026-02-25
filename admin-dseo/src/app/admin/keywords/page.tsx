@@ -650,6 +650,7 @@ export default function KeywordsPage() {
             <div className="space-y-2">
                 {[
                   { value: 'pending', label: 'Pendientes (disponibles)', color: 'bg-yellow-100 text-yellow-800' },
+                  { value: 'clustered', label: 'Asignadas a SILO', color: 'bg-green-100 text-green-800' },
                   { value: 'discarded', label: 'Descartadas (para reactivar)', color: 'bg-red-100 text-red-800' }
                 ].map((option) => (
                   <label key={option.value} className="flex items-center space-x-2 cursor-pointer">

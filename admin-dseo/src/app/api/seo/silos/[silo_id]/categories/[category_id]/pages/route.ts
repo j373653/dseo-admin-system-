@@ -41,6 +41,30 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
     
+    // Primero, obtener las keywords asignadas a esta página
+    const { data: assignments } = await supabaseClient
+      .from('d_seo_admin_keyword_assignments')
+      .select('keyword_id')
+      .eq('page_id', id)
+    
+    // Eliminar las asignaciones de keywords
+    await supabaseClient
+      .from('d_seo_admin_keyword_assignments')
+      .delete()
+      .eq('page_id', id)
+    
+    // Pasar las keywords a pending
+    if (assignments && assignments.length > 0) {
+      const keywordIds = assignments.map((a: any) => a.keyword_id).filter(Boolean)
+      if (keywordIds.length > 0) {
+        await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .update({ status: 'pending' })
+          .in('id', keywordIds)
+      }
+    }
+    
+    // Ahora eliminar la página
     const { error } = await supabaseClient.from('d_seo_admin_pages').delete().eq('id', id)
     if (error) throw new Error(error.message)
     return NextResponse.json({ success: true })
