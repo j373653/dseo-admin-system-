@@ -61,6 +61,7 @@ export default function SilosPage() {
   const [editPagePillar, setEditPagePillar] = useState(false)
   const [editPageType, setEditPageType] = useState('blog')
   const [expandedSilos, setExpandedSilos] = useState<Set<string>>(new Set())
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [showKeywordPanel, setShowKeywordPanel] = useState(false)
   const [selectedPageForKeywords, setSelectedPageForKeywords] = useState<string | null>(null)
   const [unassignedKeywords, setUnassignedKeywords] = useState<Keyword[]>([])
@@ -252,6 +253,16 @@ export default function SilosPage() {
     setExpandedSilos(newExpanded)
   }
 
+  const toggleCategory = (id: string) => {
+    const newExpanded = new Set(expandedCategories)
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id)
+    } else {
+      newExpanded.add(id)
+    }
+    setExpandedCategories(newExpanded)
+  }
+
   const openKeywordPanel = async (pageId: string) => {
     setSelectedPageForKeywords(pageId)
     setShowKeywordPanel(true)
@@ -387,7 +398,9 @@ export default function SilosPage() {
               <div className="p-4 border-t">
                 {s.categories && s.categories.length > 0 && (
                   <div className="space-y-3 ml-4">
-                    {s.categories.map((c) => (
+                    {s.categories.map((c) => {
+                      const categoryKeywordCount = c.pages.reduce((sum, p) => sum + (p.keywords?.length || 0), 0)
+                      return (
                       <div key={c.id} className="border-l-4 border-green-500 pl-4 py-2">
                         <div className="flex items-center justify-between">
                           {editingCategory === c.id ? (
@@ -408,9 +421,20 @@ export default function SilosPage() {
                             </div>
                           ) : (
                             <>
-                              <div>
-                                <div className="font-semibold text-green-700 text-lg">{c.name}</div>
-                                {c.description && <div className="text-sm text-gray-500 mb-2">{c.description}</div>}
+                              <div className="flex items-center gap-3 flex-1">
+                                <button 
+                                  onClick={() => toggleCategory(c.id)}
+                                  className="text-gray-500 hover:text-gray-700"
+                                >
+                                  {expandedCategories.has(c.id) ? '▼' : '▶'}
+                                </button>
+                                <div>
+                                  <div className="font-semibold text-green-700 text-lg">{c.name}</div>
+                                  {c.description && <div className="text-sm text-gray-500 mb-1">{c.description}</div>}
+                                  <div className="text-xs text-gray-500">
+                                    {c.pages.length} página{c.pages.length !== 1 ? 's' : ''} • {categoryKeywordCount} keyword{categoryKeywordCount !== 1 ? 's' : ''}
+                                  </div>
+                                </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <button 
@@ -430,7 +454,7 @@ export default function SilosPage() {
                           )}
                         </div>
                         
-                        {c.pages && c.pages.length > 0 && (
+                        {c.pages && c.pages.length > 0 && expandedCategories.has(c.id) && (
                           <div className="ml-4 mt-3 space-y-2">
                             {c.pages.map((p) => (
                               <div key={p.id} className={`p-3 rounded ${p.is_pillar ? 'bg-yellow-50 border border-yellow-300' : 'bg-gray-50'}`}>
@@ -601,7 +625,7 @@ export default function SilosPage() {
                           </button>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
 

@@ -40,6 +40,9 @@ export default function ProposalPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   
+  // Progress tracking
+  const [analyzingProgress, setAnalyzingProgress] = useState({ current: 0, total: 0, status: '' })
+  
   const [keywords, setKeywords] = useState<KeywordInfo[]>([])
   const [filterResults, setFilterResults] = useState<FilterResult[]>([])
   const [discardSelected, setDiscardSelected] = useState<string[]>([])
@@ -150,13 +153,32 @@ export default function ProposalPage() {
     setLoading(true)
     setError('')
 
-    try {
-      // Only send keywords that are NOT in discardSelected (they are pending)
-      const keywordIds = filterResults
-        .filter(r => !discardSelected.includes(r.id))
-        .map(r => r.id)
-        .filter(Boolean)
+    // Calcular progreso estimado
+    const keywordIds = filterResults
+      .filter(r => !discardSelected.includes(r.id))
+      .map(r => r.id)
+      .filter(Boolean)
+    
+    const estimatedBatches = Math.ceil(keywordIds.length / 40)
+    setAnalyzingProgress({ current: 0, total: estimatedBatches, status: 'Iniciando análisis...' })
 
+    // Interval para mostrar progreso
+    let progressInterval: NodeJS.Timeout
+    if (keywordIds.length > 40) {
+      let batchCounter = 0
+      progressInterval = setInterval(() => {
+        batchCounter++
+        if (batchCounter < estimatedBatches) {
+          setAnalyzingProgress({ 
+            current: batchCounter, 
+            total: estimatedBatches, 
+            status: `Analizando batch ${batchCounter} de ${estimatedBatches}...` 
+          })
+        }
+      }, 30000) // Actualizar cada 30 segundos (tiempo estimado por batch)
+    }
+
+    try {
       console.log('keywordIds for AI analysis (pending):', keywordIds.length)
       console.log('discardSelected:', discardSelected.length)
       console.log('autoDiscardedCount:', autoDiscardedCount)
@@ -184,6 +206,15 @@ export default function ProposalPage() {
         setProposal(data.proposal)
         setIntentions(data.intentions || {})
         
+        // Mostrar info de progreso real
+        if (data.batchesProcessed) {
+          setAnalyzingProgress({ 
+            current: data.batchesProcessed, 
+            total: data.batchesProcessed, 
+            status: `Completado: ${data.batchesProcessed} batches procesados` 
+          })
+        }
+        
         // Guardar propuesta y avanzar al paso 3
         const proposalData = {
           proposal: data.proposal,
@@ -208,6 +239,7 @@ export default function ProposalPage() {
       setError(err.message)
     } finally {
       setLoading(false)
+      if (progressInterval) clearInterval(progressInterval)
     }
   }
 
@@ -531,6 +563,25 @@ export default function ProposalPage() {
                   </button>
                 )}
               </div>
+
+              {/* Progress indicator */}
+              {loading && analyzingProgress.total > 1 && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-800">{analyzingProgress.status}</span>
+                    <span className="text-sm text-blue-600">{analyzingProgress.current}/{analyzingProgress.total} batches</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-500" 
+                      style={{ width: `${(analyzingProgress.current / analyzingProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    No cierres esta página. El análisis continúa en segundo plano.
+                  </p>
+                </div>
+              )}
 
               {showConfirmDiscard && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
