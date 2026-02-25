@@ -174,6 +174,23 @@ export async function DELETE(req: NextRequest) {
           .delete()
           .in('page_id', pageIds)
         
+        // Obtener keyword_ids para pasarlos a pending (ya que se eliminaron los assignments)
+        const { data: deletedAssignments } = await supabaseClient
+          .from('d_seo_admin_keyword_assignments')
+          .select('keyword_id')
+          .in('page_id', pageIds)
+        
+        // Pasar keywords a pending
+        if (deletedAssignments && deletedAssignments.length > 0) {
+          const keywordIds = deletedAssignments.map((a: any) => a.keyword_id).filter(Boolean)
+          if (keywordIds.length > 0) {
+            await supabaseClient
+              .from('d_seo_admin_raw_keywords')
+              .update({ status: 'pending' })
+              .in('id', keywordIds)
+          }
+        }
+        
         // Eliminar páginas
         await supabaseClient
           .from('d_seo_admin_pages')
