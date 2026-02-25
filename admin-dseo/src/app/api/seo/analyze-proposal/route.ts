@@ -418,10 +418,12 @@ ${`{
       const intentions: { [key: string]: string } = {}
       
       for (const silo of silos) {
+        if (!silo || !silo.name) continue
         const convertedCategories = []
-        for (const cat of silo.categories) {
+        for (const cat of (silo.categories || [])) {
+          if (!cat || !cat.name) continue
           const convertedPages = []
-          for (const page of cat.pages) {
+          for (const page of (cat.pages || [])) {
             // OPCIÓN A: Matching híbrido - intentar ID primero, luego por texto
             let keywordId = page.main_keyword_id
             let mainKeywordText = page.main_keyword ? String(page.main_keyword) : ''
