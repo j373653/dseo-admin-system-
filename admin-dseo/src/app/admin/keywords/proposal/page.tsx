@@ -163,7 +163,7 @@ export default function ProposalPage() {
     setAnalyzingProgress({ current: 0, total: estimatedBatches, status: 'Iniciando análisis...' })
 
     // Interval para mostrar progreso
-    let progressInterval: NodeJS.Timeout
+    let progressInterval: NodeJS.Timeout | undefined = undefined
     if (keywordIds.length > 40) {
       let batchCounter = 0
       progressInterval = setInterval(() => {
