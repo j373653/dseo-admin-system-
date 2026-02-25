@@ -706,18 +706,21 @@ export async function POST(request: NextRequest) {
       
       // Merge results, avoiding duplicate silo names
       for (const silo of proposal.silos) {
-        const existingSilo = allSilos.find((s: any) => s.name.toLowerCase() === silo.name.toLowerCase())
+        if (!silo || !silo.name) continue
+        const existingSilo = allSilos.find((s: any) => s.name?.toLowerCase() === silo.name?.toLowerCase())
         if (!existingSilo) {
           allSilos.push(silo)
         } else {
           // Merge categories into existing silo
-          for (const cat of silo.categories) {
-            const existingCat = existingSilo.categories.find((c: any) => c.name.toLowerCase() === cat.name.toLowerCase())
+          for (const cat of (silo.categories || [])) {
+            if (!cat || !cat.name) continue
+            const existingCat = existingSilo.categories.find((c: any) => c.name?.toLowerCase() === cat.name?.toLowerCase())
             if (!existingCat) {
               existingSilo.categories.push(cat)
             } else {
               // Merge pages into existing category
-              for (const page of cat.pages) {
+              for (const page of (cat.pages || [])) {
+                if (!page || !page.main_keyword_id) continue
                 if (!existingCat.pages.find((p: any) => p.main_keyword_id === page.main_keyword_id)) {
                   existingCat.pages.push(page)
                 }
