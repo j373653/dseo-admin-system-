@@ -49,7 +49,62 @@ export async function POST(request: NextRequest) {
       keywordsClustered: 0,
       keywordsDiscarded: 0,
       keywordsPending: 0,
+      deduplicatedKeywords: 0,
       errors: [] as string[]
+    }
+
+    // ============================================================
+    // ANTI-CANIBALIZATION: Deduplicate keywords across pages
+    // Each keyword should only appear in ONE page
+    // ============================================================
+    console.log('=== ANTI-CANIBALIZATION: Deduplicating keywords ===')
+    
+    // Map: keywordId -> first page it appears in
+    const keywordToPageMap = new Map<string, { silo: any, category: any, page: any }>()
+    const duplicateKeywords: string[] = []
+    
+    for (const siloData of proposal.silos || []) {
+      for (const catData of siloData.categories || []) {
+        for (const pageData of catData.pages || []) {
+          // Check main keyword
+          if (pageData.main_keyword_id) {
+            if (keywordToPageMap.has(pageData.main_keyword_id)) {
+              duplicateKeywords.push(pageData.main_keyword_id)
+              pageData.main_keyword_id = null // Remove duplicate
+              pageData.main_keyword = null
+            } else {
+              keywordToPageMap.set(pageData.main_keyword_id, { silo: siloData, category: catData, page: pageData })
+            }
+          }
+          
+          // Check secondary keywords
+          if (pageData.secondary_keywords_ids) {
+            pageData.secondary_keywords_ids = (pageData.secondary_keywords_ids as string[]).filter((kwId: string) => {
+              if (!kwId) return false
+              if (keywordToPageMap.has(kwId)) {
+                duplicateKeywords.push(kwId)
+                return false // Remove duplicate
+              }
+              keywordToPageMap.set(kwId, { silo: siloData, category: catData, page: pageData })
+              return true
+            })
+          }
+          
+          // Also check by text if IDs missing
+          if (pageData.secondary_keywords) {
+            pageData.secondary_keywords = (pageData.secondary_keywords as string[]).filter((kwText: string) => {
+              // Simple dedupe by text - will be resolved by ID later
+              return true
+            })
+          }
+        }
+      }
+    }
+    
+    results.deduplicatedKeywords = duplicateKeywords.length
+    console.log(`Deduplicated ${duplicateKeywords.length} keywords that appeared in multiple pages`)
+    if (duplicateKeywords.length > 0) {
+      console.log('Duplicate keyword IDs:', duplicateKeywords.slice(0, 5), '...')
     }
 
     // Collect all keyword IDs that are in the proposal

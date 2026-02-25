@@ -186,15 +186,19 @@ Para CADA página, especifica:
 - is_pillar: true si es la página más importante de la categoría
 - intent: "informational" (información), "transactional" (compra/contratar), "commercial" (compara)
 
-### REGLAS FINALES
+### REGLAS FINALES - ANTI-CANIBALIZACIÓN ESTRICTA
 - NO INVENTES keywords - usa EXACTAMENTE las de la lista
 - NO CREES NUEVOS PILARES - usa solo los 4 pilares definidos arriba
 - NO CREES NUEVAS CATEGORÍAS - usa solo las categorías listadas arriba
 - keywords "transactional" → tipo "service" o "landing"
 - keywords "informational" → tipo "blog"
-- keywords muy similares → agrupa en la misma página
-- CADA keyword de la lista debe aparecer al menos una vez (como main o secondary)
-- ANTIDUPLICACIÓN: Cada nombre de categoría debe ser ÚNICO en todo el JSON de salida
+
+### REGLA CRÍTICA: UNA KEYWORD = UNA PÁGINA
+- CADA keyword debe aparecer EXACTAMENTE UNA VEZ en toda la propuesta
+- NO repitas keywords en múltiples páginas (ni como main ni como secondary)
+- Si una keyword similar ya fue asignada, NO la asignes de nuevo
+- Es MEJOR tener muchas secondary_keywords en UNA página que la misma keyword en VARIAS páginas
+- Las keywords muy similares (misma raíz, plural/singular, variaciones) deben IR JUNTAS en la misma página
 
 ### FORMATO DE SALIDA JSON:
 - Para cada página, incluye TANTO el ID como el texto de la keyword (para validación cruzada)
