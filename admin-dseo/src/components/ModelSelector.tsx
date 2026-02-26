@@ -22,7 +22,7 @@ interface ModelOption {
 
 interface ModelSelectorProps {
   currentTask: string
-  onModelChange?: (model: string, provider: string) => void
+  onModelChange?: (model: string, provider: string, apiKeyEnvVar?: string) => void
 }
 
 const STORAGE_KEY = 'dseo_selected_model'
@@ -75,7 +75,7 @@ export default function ModelSelector({ currentTask, onModelChange }: ModelSelec
       setSelectedModel(providerModels[0].modelId)
       localStorage.setItem(`${STORAGE_KEY}_model_${currentTask}`, providerModels[0].modelId)
       if (onModelChange) {
-        onModelChange(providerModels[0].modelId, providerName)
+        onModelChange(providerModels[0].modelId, providerName, providerModels[0].apiKeyEnvVar)
       }
     }
   }
@@ -83,8 +83,10 @@ export default function ModelSelector({ currentTask, onModelChange }: ModelSelec
   const handleModelChange = (modelId: string) => {
     setSelectedModel(modelId)
     localStorage.setItem(`${STORAGE_KEY}_model_${currentTask}`, modelId)
+    // Buscar el modelo seleccionado para obtener su apiKeyEnvVar
+    const currentModel = currentModels.find(m => m.modelId === modelId)
     if (onModelChange) {
-      onModelChange(modelId, selectedProvider)
+      onModelChange(modelId, selectedProvider, currentModel?.apiKeyEnvVar)
     }
   }
 

@@ -586,7 +586,7 @@ export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const body = await request.json()
-    const { keywordIds, useExistingSilos, model, provider } = body
+    const { keywordIds, useExistingSilos, model, provider, apiKeyEnvVar } = body
     
     console.log('=== API DEBUG ===')
     console.log('Full body:', body)
@@ -603,8 +603,13 @@ export async function POST(request: NextRequest) {
     
     // Determinar el proveedor y API key
     const providerName = provider?.toLowerCase() || ''
+    const apiKeyEnvVarName = apiKeyEnvVar || ''
     
-    if (providerName.includes('google') || !providerName) {
+    // Si se especifica una variable de entorno específica, usarla directamente
+    if (apiKeyEnvVarName) {
+      apiKey = process.env[apiKeyEnvVarName] || ''
+      console.log('Using API key from env var:', apiKeyEnvVarName)
+    } else if (providerName.includes('google') || !providerName) {
       // Google provider
       if (model === 'gemini-2.5-pro') {
         apiKey = process.env.GEMINI_2_5_PRO_API_KEY || process.env.GOOGLE_AI_API_KEY || ''

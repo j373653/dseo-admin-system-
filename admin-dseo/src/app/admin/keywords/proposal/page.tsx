@@ -57,6 +57,7 @@ export default function ProposalPage() {
   const [showConfirmDiscard, setShowConfirmDiscard] = useState(false)
   const [selectedModel, setSelectedModel] = useState('')
   const [selectedProvider, setSelectedProvider] = useState('')
+  const [selectedApiKeyEnvVar, setSelectedApiKeyEnvVar] = useState('')
 
   // Saved proposals from DB
   const [savedProposals, setSavedProposals] = useState<any[]>([])
@@ -267,7 +268,8 @@ export default function ProposalPage() {
           keywordIds,
           useExistingSilos,
           model: selectedModel || undefined,
-          provider: selectedProvider || undefined
+          provider: selectedProvider || undefined,
+          apiKeyEnvVar: selectedApiKeyEnvVar || undefined
         })
       })
 
@@ -639,9 +641,10 @@ export default function ProposalPage() {
               <div className="flex gap-4 mt-4 items-center">
                 <ModelSelector 
                   currentTask="silo" 
-                  onModelChange={(model, provider) => {
+                  onModelChange={(model, provider, apiKeyEnvVar) => {
                     setSelectedModel(model)
                     setSelectedProvider(provider)
+                    setSelectedApiKeyEnvVar(apiKeyEnvVar || '')
                   }}
                 />
                 <button
