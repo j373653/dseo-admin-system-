@@ -588,9 +588,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { keywordIds, useExistingSilos, model } = body
     
-    console.log('=== API DEBUG ===('Full body:', body)
-    console')
-    console.log.log('keywordIds type:', typeof keywordIds)
+    console.log('=== API DEBUG ===')
+    console.log('Full body:', body)
+    console.log('keywordIds type:', typeof keywordIds)
     console.log('keywordIds isArray:', Array.isArray(keywordIds))
     console.log('keywordIds received:', keywordIds?.length, keywordIds)
     console.log('useExistingSilos:', useExistingSilos)
