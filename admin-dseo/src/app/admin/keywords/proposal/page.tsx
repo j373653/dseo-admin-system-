@@ -323,6 +323,23 @@ export default function ProposalPage() {
     setError('')
 
     try {
+      // Guardar automáticamente la propuesta antes de aplicar
+      const saveRes = await fetch('/api/seo/proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposal,
+          intentions,
+          discardSelected,
+          keywordsCount: filterResults.filter(r => !discardSelected.includes(r.id)).length
+        })
+      })
+      const saveData = await saveRes.json()
+      if (saveData.success) {
+        console.log('Propuesta guardada automáticamente')
+        loadSavedProposals()
+      }
+
       const discardIds = discardSelected
       const keepPendingIds = keywords
         .filter(k => !proposal.flatMap(s => s.categories || []).flatMap(c => c.pages || []).flatMap(p => [p.main_keyword, ...(p.secondary_keywords || [])]).some(pk => pk.toLowerCase() === k.keyword.toLowerCase()))
