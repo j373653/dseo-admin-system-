@@ -56,12 +56,19 @@ export default function ProposalPage() {
   const [applying, setApplying] = useState(false)
   const [showConfirmDiscard, setShowConfirmDiscard] = useState(false)
   const [selectedModel, setSelectedModel] = useState('')
+  const [selectedProvider, setSelectedProvider] = useState('')
+
+  // Saved proposals from DB
+  const [savedProposals, setSavedProposals] = useState<any[]>([])
+  const [showProposalsModal, setShowProposalsModal] = useState(false)
+  const [loadingProposals, setLoadingProposals] = useState(false)
 
   const [hasSavedProposal, setHasSavedProposal] = useState(false)
 
   useEffect(() => {
     loadPendingKeywords()
     checkSavedProposal()
+    loadSavedProposals()
   }, [])
 
   const checkSavedProposal = () => {
@@ -99,6 +106,68 @@ export default function ProposalPage() {
     localStorage.removeItem('dseo_last_proposal')
     setHasSavedProposal(false)
   }
+
+  // ============= DB Proposals Functions =============
+  const loadSavedProposals = async () => {
+    try {
+      const res = await fetch('/api/seo/proposals')
+      const data = await res.json()
+      if (data.proposals) {
+        setSavedProposals(data.proposals)
+      }
+    } catch (err) {
+      console.error('Error loading saved proposals:', err)
+    }
+  }
+
+  const saveProposalToDB = async () => {
+    if (proposal.length === 0) return
+    
+    setLoadingProposals(true)
+    try {
+      const res = await fetch('/api/seo/proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposal,
+          intentions,
+          discardSelected,
+          keywordsCount: filterResults.filter(r => !discardSelected.includes(r.id)).length
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSuccess('Propuesta guardada correctamente')
+        loadSavedProposals()
+      }
+    } catch (err) {
+      console.error('Error saving proposal:', err)
+    } finally {
+      setLoadingProposals(false)
+    }
+  }
+
+  const loadProposalFromDB = (proposalData: any) => {
+    setProposal(proposalData.proposal)
+    setIntentions(proposalData.intentions || {})
+    setDiscardSelected(proposalData.discard_selected || [])
+    setStep(3)
+    setShowProposalsModal(false)
+  }
+
+  const deleteProposalFromDB = async (id: string) => {
+    try {
+      const res = await fetch(`/api/seo/proposals?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        loadSavedProposals()
+      }
+    } catch (err) {
+      console.error('Error deleting proposal:', err)
+    }
+  }
+
+  // =================================================
 
   const loadPendingKeywords = async () => {
     try {
@@ -197,7 +266,8 @@ export default function ProposalPage() {
         body: JSON.stringify({
           keywordIds,
           useExistingSilos,
-          model: selectedModel || undefined
+          model: selectedModel || undefined,
+          provider: selectedProvider || undefined
         })
       })
 
@@ -467,6 +537,25 @@ export default function ProposalPage() {
                     Continuar con propuesta actual
                   </button>
                 )}
+
+                {/* Botón para guardar propuesta */}
+                {proposal.length > 0 && (
+                  <button
+                    onClick={saveProposalToDB}
+                    disabled={loadingProposals}
+                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {loadingProposals ? 'Guardando...' : 'Guardar Propuesta'}
+                  </button>
+                )}
+
+                {/* Botón para ver propuestas guardadas */}
+                <button
+                  onClick={() => setShowProposalsModal(true)}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                >
+                  Mis Propuestas ({savedProposals.length})
+                </button>
               </div>
               
               {hasSavedProposal && (
@@ -550,7 +639,10 @@ export default function ProposalPage() {
               <div className="flex gap-4 mt-4 items-center">
                 <ModelSelector 
                   currentTask="silo" 
-                  onModelChange={setSelectedModel}
+                  onModelChange={(model, provider) => {
+                    setSelectedModel(model)
+                    setSelectedProvider(provider)
+                  }}
                 />
                 <button
                   onClick={handleAnalyzeWithAI}
@@ -784,6 +876,60 @@ export default function ProposalPage() {
           )}
         </div>
       </div>
+
+      {/* Modal: Mis Propuestas Guardadas */}
+      {showProposalsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Mis Propuestas Guardadas</h2>
+              <button
+                onClick={() => setShowProposalsModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {savedProposals.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                No hay propuestas guardadas
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {savedProposals.map((p) => (
+                  <div key={p.id} className="border rounded p-4 flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold">{p.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {p.keywords_count} keywords • {new Date(p.created_at).toLocaleDateString('es-ES')}
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => loadProposalFromDB(p)}
+                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                      >
+                        Cargar
+                      </button>
+                      <button
+                        onClick={() => deleteProposalFromDB(p.id)}
+                        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-400 mt-4">
+              Máximo 3 propuestas guardadas. Las más antiguas se eliminan automáticamente.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

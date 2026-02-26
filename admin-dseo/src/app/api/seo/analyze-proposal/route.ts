@@ -586,7 +586,7 @@ export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const body = await request.json()
-    const { keywordIds, useExistingSilos, model } = body
+    const { keywordIds, useExistingSilos, model, provider } = body
     
     console.log('=== API DEBUG ===')
     console.log('Full body:', body)
@@ -595,20 +595,27 @@ export async function POST(request: NextRequest) {
     console.log('keywordIds received:', keywordIds?.length, keywordIds)
     console.log('useExistingSilos:', useExistingSilos)
     console.log('Model selected:', model)
+    console.log('Provider selected:', provider)
     
-    // Seleccionar API key según el modelo
+    // Seleccionar API key según el modelo y proveedor
     let apiKey: string
     let apiModel = model
     
-    if (model === 'gemini-3-flash') {
-      apiKey = process.env.GEMINI_3_FLASH_API_KEY || ''
-      apiModel = 'gemini-3-flash'
-    } else if (model && (model.includes('/') || model.includes(':free'))) {
-      // OpenRouter model
+    // Determinar el proveedor y API key
+    const providerName = provider?.toLowerCase() || ''
+    
+    if (providerName.includes('google') || !providerName) {
+      // Google provider
+      if (model === 'gemini-2.5-pro') {
+        apiKey = process.env.GEMINI_2_5_PRO_API_KEY || process.env.GOOGLE_AI_API_KEY || ''
+      } else {
+        apiKey = process.env.GEMINI_MAIN_API_KEY || process.env.GOOGLE_AI_API_KEY || ''
+      }
+    } else if (providerName.includes('openrouter')) {
+      // OpenRouter provider
       apiKey = process.env.OPENROUTER_API_KEY || ''
-      apiModel = model
     } else {
-      // Default Gemini
+      // Default fallback
       apiKey = process.env.GOOGLE_AI_API_KEY || ''
     }
     
