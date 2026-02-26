@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase'
+import ModelSelector from '@/components/ModelSelector'
 
 type PageData = {
   main_keyword: string
@@ -54,6 +55,7 @@ export default function ProposalPage() {
   const [useExistingSilos, setUseExistingSilos] = useState(true)
   const [applying, setApplying] = useState(false)
   const [showConfirmDiscard, setShowConfirmDiscard] = useState(false)
+  const [selectedModel, setSelectedModel] = useState('')
 
   const [hasSavedProposal, setHasSavedProposal] = useState(false)
 
@@ -194,7 +196,8 @@ export default function ProposalPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keywordIds,
-          useExistingSilos
+          useExistingSilos,
+          model: selectedModel || undefined
         })
       })
 
@@ -544,7 +547,11 @@ export default function ProposalPage() {
                 </table>
               </div>
 
-              <div className="flex gap-4 mt-4">
+              <div className="flex gap-4 mt-4 items-center">
+                <ModelSelector 
+                  currentTask="silo" 
+                  onModelChange={setSelectedModel}
+                />
                 <button
                   onClick={handleAnalyzeWithAI}
                   disabled={loading}

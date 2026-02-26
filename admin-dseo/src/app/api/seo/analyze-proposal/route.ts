@@ -129,8 +129,8 @@ SITEMAP ACTUAL DEL SITIO WEB (evitar duplicar contenido existente):
 ${sitemapUrls || 'Sin sitemap disponible'}`
 
   // Lista de pilares válidos predefinidos (estructura consolidada a 4 pilares)
-  const validSilos = `PILARES VÁLIDOS Y OBLIGATORIOS (usar estos 4 pilares existentes):
-- Pilar 1: Desarrollo Web & E-commerce (incluye: WordPress, Tiendas Online, Mantenimiento, Legal, Diseño Web)
+  const validSilos = `PILARES VÁLIDOS Y OBLIGATORIOS (usar estos 4 pilares EXACTAMENTE):
+- Pilar 1: Desarrollo Web & E-commerce (incluye: WordPress, Tiendas Online, Mantenimiento, Textos Legales Web, Diseño Web)
 - Pilar 2: Aplicaciones & Software (incluye: Apps iOS/Android, Apps Escritorio, PWAs, Desarrollo a Medida)
 - Pilar 3: IA & Automatizaciones (incluye: Chatbots, Automatizaciones, Agentes IA, IA para Empresas)
 - Pilar 4: SEO & Marketing Digital (incluye: SEO Técnico, SEO Local, SEO por Sectores, Analítica, Auditorías)
@@ -141,12 +141,14 @@ CATEGORÍAS ESENCIALES POR PILAR (usar solo estas categorías - NO crear nuevas)
 - Pilar 3: Chatbots, Automatizaciones, Agentes IA, IA para Empresas
 - Pilar 4: SEO Técnico, SEO Local, SEO por Sectores, Analítica, Auditorías
 
-INSTRUCCIONES DE PILARES:
+INSTRUCCIONES CRÍTICAS DE PILARES:
 - USA los 4 pilares de arriba EXACTAMENTE como están escritos
 - NO crees nuevos pilares - usa uno de los 4 listados
 - NO crees nuevas categorías - usa solo las listadas arriba
 - Si una keyword no encaja → usar la categoría más cercana de la lista
-- Evita TODA duplicación de categorías`
+- Evita TODA duplicación de categorías
+- "Textos Legales Web" debe estar como categoría DENTRO de "Desarrollo Web & E-commerce"
+- NO uses "Textos Legales Web" como pilar independiente`
 
   const prompt = `### ROL: Senior SEO Strategist & Information Architect
 Actúa como un consultor SEO experto con 15 años de experiencia en arquitectura de información y jerarquía de contenidos. Tu especialidad es la creación de estructuras SILO que maximizan el traspaso de autoridad y evitan la canibalización.
@@ -584,17 +586,34 @@ export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const body = await request.json()
-    const { keywordIds, useExistingSilos } = body
+    const { keywordIds, useExistingSilos, model } = body
     
-    console.log('=== API DEBUG ===')
-    console.log('Full body:', body)
-    console.log('keywordIds type:', typeof keywordIds)
+    console.log('=== API DEBUG ===('Full body:', body)
+    console')
+    console.log.log('keywordIds type:', typeof keywordIds)
     console.log('keywordIds isArray:', Array.isArray(keywordIds))
     console.log('keywordIds received:', keywordIds?.length, keywordIds)
     console.log('useExistingSilos:', useExistingSilos)
+    console.log('Model selected:', model)
     
-    const apiKey = process.env.GOOGLE_AI_API_KEY
-    console.log('GOOGLE_AI_API_KEY exists:', !!apiKey)
+    // Seleccionar API key según el modelo
+    let apiKey: string
+    let apiModel = model
+    
+    if (model === 'gemini-3-flash') {
+      apiKey = process.env.GEMINI_3_FLASH_API_KEY || ''
+      apiModel = 'gemini-3-flash'
+    } else if (model && (model.includes('/') || model.includes(':free'))) {
+      // OpenRouter model
+      apiKey = process.env.OPENROUTER_API_KEY || ''
+      apiModel = model
+    } else {
+      // Default Gemini
+      apiKey = process.env.GOOGLE_AI_API_KEY || ''
+    }
+    
+    console.log('API key exists:', !!apiKey)
+    console.log('API model:', apiModel)
     
     if (!apiKey) {
       console.log('ERROR: No API key')
@@ -698,7 +717,8 @@ export async function POST(request: NextRequest) {
 
     const aiConfig = await getAIConfig()
     const siloConfig = aiConfig?.silo || { model: 'gemini-2.5-pro', parameters: { maxTokens: 20000, temperature: 0.3 } }
-    const aiModel = siloConfig.model
+    // Usar modelo proporcionado por el usuario, o el de config
+    const aiModel = model || siloConfig.model
     const aiParams = siloConfig.parameters || {}
 
     const BATCH_SIZE = 40

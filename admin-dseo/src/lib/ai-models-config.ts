@@ -82,6 +82,20 @@ export const AI_MODELS: Record<string, ModelConfig> = {
     bestFor: ['fallback', 'keyword-analysis-simple'],
     recommendedBatchSize: 10,
     maxBatchSize: 15
+  },
+
+  // Gemini 3 Flash (Nuevo - prioritario)
+  'gemini-3-flash': {
+    name: 'Gemini 3 Flash',
+    provider: 'google',
+    rpm: 5,
+    tpm: 250000,
+    rpd: 20,
+    contextTokens: 1000000,
+    costPer1kTokens: 0, // Gratuito
+    bestFor: ['complex-analysis', 'silo-architecture', 'high-accuracy'],
+    recommendedBatchSize: 10,
+    maxBatchSize: 20
   }
 };
 
