@@ -60,16 +60,24 @@ function slugify(text: string): string {
 
 interface SiloProposal {
   name: string
+  priority?: number
   categories: {
     name: string
+    subcategory?: string
     pages: {
       main_keyword_id: string
       main_keyword?: string
+      slug?: string
       secondary_keywords_ids: string[]
       secondary_keywords?: string[]
       type: 'service' | 'blog' | 'landing'
-      is_pillar: boolean
+      cluster_type?: 'pillar' | 'support'
+      is_pillar?: boolean
       intent: 'informational' | 'transactional' | 'commercial'
+      stage?: 'TOFU' | 'MOFU' | 'BOFU'
+      entity?: string
+      content_difficulty?: 'short' | 'medium' | 'long' | 'guide'
+      internal_linking?: string[]
     }[]
   }[]
 }
@@ -84,6 +92,15 @@ interface SiloForPrompt {
   }[]
 }
 
+interface PrecomputedCluster {
+  name: string
+  keywords: string[]
+  entity: string
+  intent: string
+  stage: string
+  is_pillar: boolean
+}
+
 async function analyzeSilosWithGemini(
   keywords: { id: string; keyword: string }[],
   apiKey: string,
@@ -91,6 +108,7 @@ async function analyzeSilosWithGemini(
   context: { theme?: string; services?: string[]; target_companies?: string[]; sitemap_urls?: string[]; discard_topics?: string[] } = {},
   aiModel: string = 'gemini-2.5-pro',
   aiParams: { maxTokens?: number; temperature?: number } = {},
+  precomputedClusters: PrecomputedCluster[] = [],
   attempt: number = 1
 ): Promise<{ silos: SiloProposal[]; intentions: { [key: string]: string }; validationErrors: string[] }> {
   const MAX_RETRIES = 2
@@ -111,6 +129,20 @@ async function analyzeSilosWithGemini(
           ).join('\n')
         ).join('\n\n')
       }\n`
+    : ''
+  
+  // Add precomputed clusters from clustering phase
+  const clustersBlock = precomputedClusters.length > 0
+    ? `CLUSTERS PRECOMPUTADOS (del análisis de clustering - USAR COMO BASE):
+${precomputedClusters.map(c => 
+  `- Cluster: ${c.name}
+   Entidad: ${c.entity}
+   Intención: ${c.intent}
+   Etapa: ${c.stage}
+   Keywords: ${c.keywords.join(', ')}`
+).join('\n\n')}
+
+IMPORTANTE: Respeta estos clusters. Cada cluster debe convertirse en una página o grupo de páginas dentro de un pilar.`
     : ''
 
   const theme = context.theme || 'Desarrollo Web, SEO, Marketing Digital, Apps, IA'
@@ -163,7 +195,9 @@ ${keywordList}
 2. ESTRUCTURA ACTUAL (para referencia):
 ${existingSilosBlock || 'Sin estructura existente'}
 
-3. TEMAS A DESCARTAR: ${discardTopics}
+${clustersBlock ? `3. CLUSTERS PRECOMPUTADOS:\n${clustersBlock}` : '3. CLUSTERS: Sin clusters precomputados'}
+
+4. TEMAS A DESCARTAR: ${discardTopics}
 
 ### REGLAS CRÍTICAS DE CUMPLIMIENTO
 1. PROHIBICIÓN DE INVENCIÓN: No puedes añadir, modificar ni inventar ninguna keyword. Si no está en la lista "PALABRAS CLAVE A ANALIZAR", NO EXISTE.
@@ -177,23 +211,66 @@ ${existingSilosBlock || 'Sin estructura existente'}
 1. Fase de Limpieza: Filtra la lista original eliminando temas descartados
 2. Fase de Clustering: Agrupa las keywords por intención de búsqueda y temática
 3. Fase de Arquitectura: Asigna cada keyword a un SILO existente y crea categorías dentro si es necesario
+4. Fase de Integración: Si hay clusters precomputados, úsalos como base para crear la estructura SILO
 
 ### ESTRUCTURA PILAR - USAR SOLO LOS 4 PILARES DEFINIDOS
 ${validSilos}
 
-Para CADA página, especifica:
-- main_keyword: Keyword principal (OBLIGATORIO: debe estar en la lista de PALABRAS CLAVE A ANALIZAR)
-- secondary_keywords: Keywords secundarias relacionadas (de la lista proporcionada)
+### TOPIC CLUSTERS: PILLAR vs SUPPORT
+Para CADA página, especifica si es PILLAR o SUPPORT:
+- **PILLAR PAGE**: La página principal del cluster (más genérica, más autoridad). Ej: "crear página web"
+- **SUPPORT PAGE**: Keywords long-tail que apoyan al pillar. Ej: "crear página web wordpress", "cómo hacer una web profesional"
+- Las Support Pages deben enlazar a su Pillar Page correspondiente
+
+### ETAPA DEL FUNNEL (User Journey)
+Clasifica cada keyword en el funnel:
+- **TOFU (Top)**: Información general ("qué es", "cómo funciona", "guía completa")
+- **MOFU (Middle)**: Comparaciones ("mejor herramienta", "vs", "comparativa")  
+- **BOFU (Bottom)**: Transaccional ("precios", "contratar", "presupuesto", "demo")
+
+### DETECCIÓN DE ENTIDADES
+Identifica la entidad principal de cada página/cluster:
+- "crear crm", "software ventas" → entity: "CRM"
+- "wordpress madrid", "diseño wp" → entity: "WordPress"
+- Esto ayuda al SEO basado en entidades de Google
+
+### GENERACIÓN DE SLUGS
+Para CADA página, genera un slug SEO-friendly basado en la main_keyword:
+- Formato: /categoria/subcategoria/keyword-slug
+- Ejemplos:
+  - main_keyword: "crear chatbot para ventas" → slug: "/ia/automatizaciones/chatbot-ventas"
+  - main_keyword: "desarrollo wordpress madrid" → slug: "/desarrollo-web/wordpress/desarrollo-wordpress-madrid"
+  - main_keyword: "auditoría seo técnica" → slug: "/seo/auditorias/auditoria-seo-tecnica"
+
+### DIFICULTAD DE CONTENIDO
+Especifica la dificultad estimada del contenido:
+- **short**: < 500 palabras (definiciones simples, entradas de blog cortas)
+- **medium**: 500-1500 palabras (explicaciones, guías básicas)
+- **long**: 1500-3000 palabras (guías completas, tutoriales detallados)
+- **guide**: > 3000 palabras (recursos exhaustivos, manuales completos)
+
+### ENLazado INTERNO SUGERIDO
+Para cada página Support, indica a qué Pillar Pages debe enlazar:
+- internal_linking: ["slug-del-pillar-1", "slug-del-pillar-2"]
+
+### Para CADA página, especifica:
+- main_keyword: Keyword principal (OBLIGATORIO: debe estar en la lista)
+- slug: URL SEO-friendly basada en la keyword
+- secondary_keywords: Keywords secundarias relacionadas (de la lista)
 - type: "service" (servicio), "blog" (artículo), "landing" (aterrizaje)
-- is_pillar: true si es la página más importante de la categoría
-- intent: "informational" (información), "transactional" (compra/contratar), "commercial" (compara)
+- cluster_type: "pillar" (página principal) o "support" (apoyo)
+- stage: "TOFU" | "MOFU" | "BOFU"
+- entity: Entidad principal detectada
+- content_difficulty: "short" | "medium" | "long" | "guide"
+- internal_linking: Array de slugs a los que debe enlazar
 
 ### REGLAS FINALES - ANTI-CANIBALIZACIÓN ESTRICTA
 - NO INVENTES keywords - usa EXACTAMENTE las de la lista
 - NO CREES NUEVOS PILARES - usa solo los 4 pilares definidos arriba
 - NO CREES NUEVAS CATEGORÍAS - usa solo las categorías listadas arriba
-- keywords "transactional" → tipo "service" o "landing"
-- keywords "informational" → tipo "blog"
+- keywords "transactional" → tipo "service" o "landing", stage: "BOFU"
+- keywords "informational" → tipo "blog", stage: "TOFU"
+- keywords "commercial" → tipo "service" o "landing", stage: "MOFU"
 
 ### REGLA CRÍTICA: UNA KEYWORD = UNA PÁGINA
 - CADA keyword debe aparecer EXACTAMENTE UNA VEZ en toda la propuesta
@@ -209,7 +286,14 @@ Para CADA página, especifica:
 - "crear páginas web con ia" → página 3
 
 **BIEN (una página para todas):**
-- "crear pagina web con ia", "crea pagina web con ia", "crear páginas web con ia" → UNA SOLA página con main_keyword="crear pagina web con ia" y secondary_keywords=["crea pagina web con ia", "crear páginas web con ia", ...]
+- "crear pagina web con ia", "crea pagina web con ia", "crear páginas web con ia" → UNA SOLA página con:
+  - main_keyword="crear pagina web con ia"
+  - slug="/desarrollo-web/crear-pagina-web-ia"
+  - cluster_type="pillar"
+  - stage="MOFU"
+  - entity="Página Web IA"
+  - secondary_keywords=["crea pagina web con ia", "crear páginas web con ia"]
+  - internal_linking=["/ia/automatizaciones", "/desarrollo-web/wordpress"]
 
 **LISTA DE VARIACIONES COMUNES A AGRUPAR:**
 - crear/crea/creo/creado
@@ -233,22 +317,30 @@ Para CADA página, especifica:
 - Para cada página, incluye TANTO el ID como el texto de la keyword (para validación cruzada)
 - Formato: "main_keyword_id": "uuid-aqui", "main_keyword": "texto de la keyword"
 - secondary_keywords_ids: array de IDs, secondary_keywords: array de textos
+- NO omitas ningún campo
 ${`{
   "silos": [
     {
-      "name": "Desarrollo Web",
+      "name": "Desarrollo Web & E-commerce",
+      "priority": 1,
       "categories": [
         {
           "name": "WordPress",
+          "subcategory": "Diseño Web",
           "pages": [
             {
               "main_keyword_id": "uuid-aqui",
               "main_keyword": "desarrollo wordpress madrid",
+              "slug": "/desarrollo-web/wordpress/desarrollo-wordpress-madrid",
               "secondary_keywords_ids": ["uuid-1", "uuid-2"],
               "secondary_keywords": ["keyword sec 1", "keyword sec 2"],
               "type": "service",
-              "is_pillar": true,
-              "intent": "transactional"
+              "cluster_type": "pillar",
+              "stage": "BOFU",
+              "entity": "WordPress",
+              "content_difficulty": "medium",
+              "intent": "transactional",
+              "internal_linking": ["/seo/auditorias/auditoria-seo-wordpress", "/desarrollo-web/ecommerce/tiendas-wordpress"]
             }
           ]
         }
@@ -537,9 +629,14 @@ ${`{
                 return kw?.keyword || ''
               }).filter(k => k),
               secondary_keywords_ids: secondaryIds,
+              slug: page.slug || '',
               type: page.type,
-              is_pillar: page.is_pillar,
-              intent: page.intent
+              cluster_type: page.cluster_type || (page.is_pillar ? 'pillar' : 'support'),
+              stage: page.stage || 'MOFU',
+              entity: page.entity || '',
+              content_difficulty: page.content_difficulty || 'medium',
+              intent: page.intent,
+              internal_linking: page.internal_linking || []
             })
           }
           
@@ -576,7 +673,7 @@ ${`{
     if (attempt <= MAX_RETRIES) {
       console.log(`Retrying SILO analysis (attempt ${attempt + 1})...`)
       await new Promise(resolve => setTimeout(resolve, 2000))
-      return analyzeSilosWithGemini(keywords, apiKey, existingSilos, context, aiModel, aiParams, attempt + 1)
+      return analyzeSilosWithGemini(keywords, apiKey, existingSilos, context, aiModel, aiParams, precomputedClusters, attempt + 1)
     }
     throw error
   }
@@ -586,7 +683,7 @@ export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   try {
     const body = await request.json()
-    const { keywordIds, useExistingSilos, model, provider, apiKeyEnvVar } = body
+    const { keywordIds, useExistingSilos, model, provider, apiKeyEnvVar, precomputedClusters } = body
     
     console.log('=== API DEBUG ===')
     console.log('Full body:', body)
@@ -596,6 +693,7 @@ export async function POST(request: NextRequest) {
     console.log('useExistingSilos:', useExistingSilos)
     console.log('Model selected:', model)
     console.log('Provider selected:', provider)
+    console.log('Precomputed clusters received:', precomputedClusters?.length || 0)
     
     // Seleccionar API key según el modelo y proveedor
     let apiKey: string
@@ -739,6 +837,18 @@ export async function POST(request: NextRequest) {
     const allValidationErrors: string[] = []
     const processedKeywordIds: string[] = []
     
+    // Convert precomputed clusters to prompt format if provided
+    const clustersForPrompt = precomputedClusters 
+      ? precomputedClusters.map((c: any) => ({
+          name: c.name || 'Unnamed',
+          keywords: c.keywords || [],
+          entity: c.entity || '',
+          intent: c.intent || 'informational',
+          stage: c.stage || 'MOFU',
+          is_pillar: c.is_pillar || false
+        }))
+      : []
+    
     // Process keywords in batches
     for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
       const batchKeywords = keywords.slice(i, i + BATCH_SIZE)
@@ -760,13 +870,15 @@ export async function POST(request: NextRequest) {
           }))
       
       // Use existing silos from previous batches to avoid duplicates
+      // Also pass precomputed clusters if available
       const proposal = await analyzeSilosWithGemini(
         batchKeywords, 
         apiKey, 
         silosForPrompt, 
         context || {}, 
         aiModel, 
-        aiParams
+        aiParams,
+        clustersForPrompt
       )
       
       // Merge results, avoiding duplicate silo names

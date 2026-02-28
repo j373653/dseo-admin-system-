@@ -1,5 +1,21 @@
 import { SearchIntent } from '@/lib/search-intent'
 
+// Tipos para intención de búsqueda avanzada
+export type SearchIntentAdvanced = 
+  | 'informational' 
+  | 'navigational' 
+  | 'commercial_investigation' 
+  | 'transactional'
+
+// Tipos para etapa del funnel
+export type FunnelStage = 'TOFU' | 'MOFU' | 'BOFU'
+
+// Tipos para tipo de página en cluster
+export type ClusterType = 'pillar' | 'support'
+
+// Tipos para dificultad de contenido
+export type ContentDifficulty = 'short' | 'medium' | 'long' | 'guide'
+
 export interface AIKeywordAnalysis {
   keyword: string
   cluster: string
@@ -13,15 +29,45 @@ export interface AIDuplicateGroup {
   keywords: string[]
 }
 
+// Interface actualizada para clusters avanzados
 export interface AICluster {
   name: string
+  entity: string           // Entidad principal del cluster
   keywords: string[]
-  intent: string
+  intent: SearchIntentAdvanced
+  stage: FunnelStage       // TOFU/MOFU/BOFU
   is_pillar: boolean
+  out_of_scope: boolean   // Keywords que no encajan en el negocio
 }
 
 export interface AICanibalization {
   keywords: string[]
+}
+
+// Interface para página SILO con campos avanzados
+export interface AISiloPage {
+  main_keyword: string
+  slug: string
+  cluster_type: ClusterType
+  stage: FunnelStage
+  entity: string
+  content_difficulty: ContentDifficulty
+  internal_linking: string[]
+  secondary_keywords: string[]
+}
+
+// Interface para categoría SILO
+export interface AISiloCategory {
+  name: string
+  subcategory?: string
+  pages: AISiloPage[]
+}
+
+// Interface para SILO
+export interface AISilo {
+  name: string
+  priority?: number
+  categories: AISiloCategory[]
 }
 
 export interface AIAnalysisResult {
@@ -30,13 +76,7 @@ export interface AIAnalysisResult {
   clusters: AICluster[]
   canibalizations: AICanibalization[]
   intentions: { [keyword: string]: string }
-  silos?: {
-    name: string
-    categories: {
-      name: string
-      pages: { mainKeyword: string; secondaryKeywords: string[]; intent: string; urlTarget: string; isPillar: boolean }[]
-    }[]
-  }[]
+  silos?: AISilo[]
   totalAnalyzed: number
   totalRequested: number
   batchesProcessed?: number
@@ -44,18 +84,37 @@ export interface AIAnalysisResult {
   error?: string
 }
 
+// Parámetros para analizar keywords
+export interface AnalyzeKeywordsParams {
+  keywords: string[]
+  existingClusters?: { name: string; keywords: string[] }[]
+  model?: string
+  provider?: string
+  apiKeyEnvVar?: string
+}
+
 /**
  * Analiza keywords usando Google Gemini AI para deduplicación semántica,
  * clustering, detección de canibalizaciones y sugerencia de pilares
  */
-export async function analyzeKeywordsWithAI(keywords: string[], existingClusters?: { name: string; keywords: string[] }[]): Promise<AIAnalysisResult> {
+export async function analyzeKeywordsWithAI(
+  keywords: string[], 
+  existingClusters?: { name: string; keywords: string[] }[],
+  params?: AnalyzeKeywordsParams
+): Promise<AIAnalysisResult> {
   try {
     const response = await fetch('/api/ai/analyze-keywords', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ keywords, existingClusters })
+      body: JSON.stringify({ 
+        keywords, 
+        existingClusters,
+        model: params?.model,
+        provider: params?.provider,
+        apiKeyEnvVar: params?.apiKeyEnvVar
+      })
     })
 
     const data = await response.json()
@@ -85,12 +144,20 @@ export async function analyzeKeywordsWithAI(keywords: string[], existingClusters
  */
 export async function getAIClusterSuggestions(
   keywords: string[],
-  existingClusters?: { name: string; keywords: string[] }[]
+  existingClusters?: { name: string; keywords: string[] }[],
+  params?: AnalyzeKeywordsParams
 ): Promise<{
-  clusters: { name: string; keywords: string[]; avgConfidence: number; contentType: string }[]
+  clusters: { 
+    name: string; 
+    keywords: string[]; 
+    avgConfidence: number; 
+    contentType: string;
+    entity?: string;
+    stage?: FunnelStage;
+  }[]
   error?: string
 }> {
-  const result = await analyzeKeywordsWithAI(keywords, existingClusters)
+  const result = await analyzeKeywordsWithAI(keywords, existingClusters, params)
 
   if (!result.success) {
     return { clusters: [], error: result.error }
@@ -120,7 +187,9 @@ export async function getAIClusterSuggestions(
       name: cluster.name,
       keywords: cluster.keywords,
       avgConfidence: 0.8,
-      contentType: cluster.is_pillar ? 'landing' : 'blog'
+      contentType: cluster.is_pillar ? 'landing' : 'blog',
+      entity: cluster.entity || '',
+      stage: cluster.stage || 'MOFU'
     }))
   }
 
