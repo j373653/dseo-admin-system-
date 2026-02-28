@@ -86,7 +86,6 @@ export interface AIAnalysisResult {
 
 // Parámetros para analizar keywords
 export interface AnalyzeKeywordsParams {
-  keywords: string[]
   existingClusters?: { name: string; keywords: string[] }[]
   model?: string
   provider?: string

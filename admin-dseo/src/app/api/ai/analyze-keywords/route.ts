@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-interface KeywordAnalysis {
-  keyword: string
-  cluster: string
-  intent: 'informational' | 'transactional' | 'commercial' | 'navigational'
-  confidence: number
-  reasoning: string
-  contentType: string
-  content_type_target: 'service' | 'blog' | 'landing'
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+const GOOGLE_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1'
 
 interface SemanticAnalysisResult {
   duplicates: string[][]
@@ -25,9 +22,29 @@ interface SemanticAnalysisResult {
   intentions: { [keyword: string]: string }
 }
 
-const DEFAULT_MODEL = 'gemini-2.5-flash-lite'
-const GOOGLE_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1'
+// Función para obtener el modelo por defecto de la BBDD
+async function getDefaultModel(task: string): Promise<string> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  
+  const { data: config } = await supabase
+    .from('d_seo_admin_ai_task_config')
+    .select(`
+      *,
+      model:model_id (
+        model_id
+      )
+    `)
+    .eq('task', task)
+    .eq('is_default', true)
+    .single()
+  
+  if (config?.model?.model_id) {
+    return config.model.model_id
+  }
+  
+  // Fallback a gemini-2.5-flash si no hay configuración
+  return 'gemini-2.5-flash'
+}
 
 function slugify(text: string): string {
   return (text || '')
@@ -41,7 +58,7 @@ async function analyzeBatchWithAI(
   keywords: string[], 
   apiKey: string,
   existingClusters: { name: string; keywords: string[] }[] = [],
-  aiModel: string = DEFAULT_MODEL,
+  aiModel: string = 'gemini-2.5-flash',
   attempt: number = 1
 ): Promise<SemanticAnalysisResult> {
   const MAX_RETRIES = 2
@@ -259,9 +276,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Obtener modelo por defecto de BBDD si no se proporciona
+    let aiModel = model
+    if (!aiModel) {
+      aiModel = await getDefaultModel('cluster')
+      console.log('No model provided, using default from DB:', aiModel)
+    }
+    
     // Seleccionar API key según el modelo y proveedor
     let apiKey: string
-    let aiModel = model || DEFAULT_MODEL
     
     // Determinar el proveedor y API key
     const providerName = provider?.toLowerCase() || ''

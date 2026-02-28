@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone'
 import { supabaseClient } from '@/lib/supabase'
 import { analyzeKeywordsWithAI, AICluster } from '@/lib/ai-analysis'
 import { fuzzyMatch } from '@/lib/fuzzy-match'
+import ModelSelector from '@/components/ModelSelector'
 import { Brain, Loader2, CheckCircle, Sparkles, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -37,6 +38,11 @@ export default function ImportKeywordsPage() {
   const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0, message: '' })
   const [analysisResults, setAnalysisResults] = useState<AICluster[] | null>(null)
   const [clustersCreated, setClustersCreated] = useState(0)
+  
+  // Model selection
+  const [selectedModel, setSelectedModel] = useState('')
+  const [selectedProvider, setSelectedProvider] = useState('')
+  const [selectedApiKeyEnvVar, setSelectedApiKeyEnvVar] = useState('')
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const csvFile = acceptedFiles[0]
@@ -215,6 +221,11 @@ export default function ImportKeywordsPage() {
   const runAIAnalysis = async () => {
     if (importedKeywords.length === 0) return
     
+    if (!selectedModel) {
+      setError('Selecciona un modelo de IA primero')
+      return
+    }
+    
     setAnalyzing(true)
     setError('')
     
@@ -223,10 +234,14 @@ export default function ImportKeywordsPage() {
       setAnalysisProgress({ 
         current: 0, 
         total: Math.ceil(keywordTexts.length / 50), 
-        message: 'Analizando keywords con Gemini...' 
+        message: `Analizando ${keywordTexts.length} keywords con ${selectedModel}...` 
       })
       
-      const result = await analyzeKeywordsWithAI(keywordTexts)
+      const result = await analyzeKeywordsWithAI(keywordTexts, undefined, {
+        model: selectedModel,
+        provider: selectedProvider,
+        apiKeyEnvVar: selectedApiKeyEnvVar
+      })
       
       if (!result.success) {
         throw new Error(result.error || 'Error en el análisis')
@@ -368,15 +383,27 @@ export default function ImportKeywordsPage() {
             </h3>
           </div>
           <p className="text-purple-700 mb-4">
-            ¿Quieres analizar estas keywords automáticamente con Gemini para crear clusters?
+            ¿Quieres analizar estas keywords automáticamente con IA para crear clusters?
           </p>
+          <div className="flex flex-wrap items-center gap-4 mb-4">
+            <ModelSelector 
+              currentTask="cluster"
+              onModelChange={(model, provider, apiKeyEnvVar) => {
+                setSelectedModel(model)
+                setSelectedProvider(provider)
+                setSelectedApiKeyEnvVar(apiKeyEnvVar || '')
+              }}
+            />
+          </div>
           <div className="flex flex-wrap gap-4">
             <button
               onClick={runAIAnalysis}
-              className="flex items-center space-x-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              disabled={!selectedModel || analyzing}
+              className="flex items-center space-x-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!selectedModel ? 'Selecciona un modelo primero' : ''}
             >
               <Brain className="w-5 h-5" />
-              <span>Sí, analizar con Gemini</span>
+              <span>Sí, analizar con IA</span>
             </button>
             <button
               onClick={skipAnalysis}

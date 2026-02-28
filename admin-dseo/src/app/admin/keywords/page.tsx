@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase'
 import { analyzeKeywordsWithAI, AIAnalysisResult } from '@/lib/ai-analysis'
 import { fuzzyMatch } from '@/lib/fuzzy-match'
+import ModelSelector from '@/components/ModelSelector'
 import { 
-  Loader2, Trash2, CheckSquare, Square, XCircle, RefreshCw, Sparkles, Eye, Check, X
+  Loader2, Trash2, CheckSquare, Square, XCircle, RefreshCw, Sparkles, Eye, Check, X, Network
 } from 'lucide-react'
 
 interface Keyword {
@@ -60,6 +61,11 @@ export default function KeywordsPage() {
   const [showPreview, setShowPreview] = useState(false)
   const [applyingChanges, setApplyingChanges] = useState(false)
   const [existingClustersForAI, setExistingClustersForAI] = useState<{ name: string, keywords: string[] }[]>([])
+  
+  // Model selection for IA
+  const [selectedModel, setSelectedModel] = useState('')
+  const [selectedProvider, setSelectedProvider] = useState('')
+  const [selectedApiKeyEnvVar, setSelectedApiKeyEnvVar] = useState('')
 
   const fetchData = async () => {
     try {
@@ -307,6 +313,11 @@ export default function KeywordsPage() {
       return
     }
 
+    if (!selectedModel) {
+      alert('Selecciona un modelo de IA primero')
+      return
+    }
+
     const selectedKeywords = keywords
       .filter(k => selectedIds.includes(k.id))
       .map(k => k.keyword)
@@ -318,8 +329,12 @@ export default function KeywordsPage() {
 
     setAnalyzingAI(true)
     try {
-      console.log(`Starting AI analysis for ${selectedKeywords.length} keywords...`)
-      const results = await analyzeKeywordsWithAI(selectedKeywords, existingClustersForAI)
+      console.log(`Starting AI clustering for ${selectedKeywords.length} keywords with model: ${selectedModel}`)
+      const results = await analyzeKeywordsWithAI(selectedKeywords, existingClustersForAI, {
+        model: selectedModel,
+        provider: selectedProvider,
+        apiKeyEnvVar: selectedApiKeyEnvVar
+      })
       
       console.log('AI Response:', results)
       
@@ -653,47 +668,64 @@ export default function KeywordsPage() {
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center justify-between">
-          <span className="text-indigo-700 font-medium">
-            {selectedIds.length} keywords seleccionadas
-          </span>
-          <div className="flex space-x-3">
-            <button
-              onClick={analyzeWithAI}
-              disabled={analyzingAI}
-              className="flex items-center space-x-1 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50"
-            >
-              {analyzingAI ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              <span>Analizar con IA</span>
-            </button>
-            <button
-              onClick={revertToPending}
-              disabled={actionLoading}
-              className="flex items-center space-x-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Reactivar (→ pending)</span>
-            </button>
-            <button
-              onClick={removeFromCluster}
-              disabled={actionLoading}
-              className="flex items-center space-x-1 px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-            >
-              <XCircle className="w-4 h-4" />
-              <span>Quitar del cluster</span>
-            </button>
-            <button
-              onClick={deleteSelected}
-              disabled={actionLoading}
-              className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Descartar</span>
-            </button>
+        <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-indigo-700 font-medium">
+              {selectedIds.length} keywords seleccionadas
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Model Selector */}
+            <div className="flex items-center space-x-2">
+              <ModelSelector 
+                currentTask="cluster"
+                onModelChange={(model, provider, apiKeyEnvVar) => {
+                  setSelectedModel(model)
+                  setSelectedProvider(provider)
+                  setSelectedApiKeyEnvVar(apiKeyEnvVar || '')
+                }}
+              />
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={analyzeWithAI}
+                disabled={analyzingAI || !selectedModel}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!selectedModel ? 'Selecciona un modelo primero' : 'Analizar keywords y crear clusters'}
+              >
+                {analyzingAI ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Network className="w-4 h-4" />
+                )}
+                <span>Analizar Clusters</span>
+              </button>
+              <button
+                onClick={revertToPending}
+                disabled={actionLoading}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Reactivar</span>
+              </button>
+              <button
+                onClick={removeFromCluster}
+                disabled={actionLoading}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+              >
+                <XCircle className="w-4 h-4" />
+                <span>Quitar cluster</span>
+              </button>
+              <button
+                onClick={deleteSelected}
+                disabled={actionLoading}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Descartar</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

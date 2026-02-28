@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { detectSearchIntent, getIntentBadge, SearchIntent } from '@/lib/search-intent'
 import { analyzeKeywordsWithAI, AICluster, AIAnalysisResult, AIKeywordAnalysis } from '@/lib/ai-analysis'
 import { cleanKeywordsForAI, calculateProcessingStrategy, formatTokenSavings } from '@/lib/keyword-cleaner'
+import ModelSelector from '@/components/ModelSelector'
 import { X, Info, AlertCircle, Brain, Loader2, CheckCircle, Sparkles, Trash2 } from 'lucide-react'
 
 interface KeywordData {
@@ -58,10 +59,15 @@ export default function IntentAnalysisModal({
   const [analyzing, setAnalyzing] = useState(false)
   const [aiResults, setAiResults] = useState<AIAnalysisResult | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
   const [showAIResults, setShowAIResults] = useState(false)
   const [cleaningResult, setCleaningResult] = useState<CleaningResult | null>(null)
+  
+  // Model selection
+  const [selectedModel, setSelectedModel] = useState('')
+  const [selectedProvider, setSelectedProvider] = useState('')
+  const [selectedApiKeyEnvVar, setSelectedApiKeyEnvVar] = useState('')
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' })
-  const [applying, setApplying] = useState(false)
   
   if (!isOpen) return null
 
@@ -106,7 +112,11 @@ export default function IntentAnalysisModal({
       })
       
       // 3. Analizar con IA
-      const result = await analyzeKeywordsWithAI(cleaned.cleanedKeywords)
+      const result = await analyzeKeywordsWithAI(cleaned.cleanedKeywords, undefined, {
+        model: selectedModel,
+        provider: selectedProvider,
+        apiKeyEnvVar: selectedApiKeyEnvVar
+      })
       
       if (!result.success) {
         throw new Error(result.error || 'Error en el análisis')
@@ -145,21 +155,45 @@ export default function IntentAnalysisModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${badge.color}`}>
-              {badge.label}
-            </span>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Análisis de {keywords.length} keywords
-            </h2>
+        <div className="p-6 border-b">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${badge.color}`}>
+                {badge.label}
+              </span>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Análisis de {keywords.length} keywords
+              </h2>
+            </div>
+            <button 
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <div className="flex items-center space-x-3">
+          
+          {/* Model Selector */}
+          <div className="flex items-center space-x-4">
+            <ModelSelector 
+              currentTask="cluster"
+              onModelChange={(model, provider, apiKeyEnvVar) => {
+                setSelectedModel(model)
+                setSelectedProvider(provider)
+                setSelectedApiKeyEnvVar(apiKeyEnvVar || '')
+              }}
+            />
+          </div>
+        </div>
+        
+        <div className="px-6 py-4 border-b bg-gray-50">
+          <div className="flex items-center justify-between">
             {!showAIResults && (
               <button
                 onClick={runAIAnalysis}
-                disabled={analyzing}
-                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                disabled={analyzing || !selectedModel}
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!selectedModel ? 'Selecciona un modelo primero' : ''}
               >
                 {analyzing ? (
                   <>
@@ -169,17 +203,11 @@ export default function IntentAnalysisModal({
                 ) : (
                   <>
                     <Brain className="w-4 h-4" />
-                    <span>Analizar con IA (Gemini)</span>
+                    <span>Analizar Clusters</span>
                   </>
                 )}
               </button>
             )}
-            <button 
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-6 h-6" />
-            </button>
           </div>
         </div>
 
