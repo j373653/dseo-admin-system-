@@ -76,7 +76,6 @@ export interface AIAnalysisResult {
   clusters: AICluster[]
   canibalizations: AICanibalization[]
   intentions: { [keyword: string]: string }
-  silos?: AISilo[]
   totalAnalyzed: number
   totalRequested: number
   batchesProcessed?: number
@@ -164,25 +163,7 @@ export async function getAIClusterSuggestions(
 
   let clusters = (result.clusters || []) as any[]
 
-  // Si no hay clusters pero existen silos, derivar clusters desde silos
-  if ((!clusters || clusters.length === 0) && (result as any).silos) {
-    const silos = (result as any).silos as any[]
-    const derived: { name: string; keywords: string[]; avgConfidence: number; contentType: string }[] = []
-    for (const silo of silos) {
-      for (const cat of (silo.categories || [])) {
-        for (const page of (cat.pages || [])) {
-          derived.push({
-            name: cat.name,
-            keywords: [page.mainKeyword, ...(page.secondaryKeywords || [])],
-            avgConfidence: 0.8,
-            contentType: page.isPillar ? 'landing' : 'blog'
-          })
-        }
-      }
-    }
-    clusters = derived
-  } else {
-    clusters = (result.clusters || []).map(cluster => ({
+  clusters = (result.clusters || []).map(cluster => ({
       name: cluster.name,
       keywords: cluster.keywords,
       avgConfidence: 0.8,
@@ -190,7 +171,6 @@ export async function getAIClusterSuggestions(
       entity: cluster.entity || '',
       stage: cluster.stage || 'MOFU'
     }))
-  }
 
   return { clusters }
 }

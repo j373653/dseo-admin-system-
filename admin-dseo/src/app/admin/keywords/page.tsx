@@ -43,7 +43,6 @@ function getIntentBadgeColor(intent: string | null | undefined): string {
 
 export default function KeywordsPage() {
   const [keywords, setKeywords] = useState<Keyword[]>([])
-  const importedKeywords = keywords
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -271,37 +270,6 @@ export default function KeywordsPage() {
     } catch (err) {
       console.error('Error:', err)
       alert('Error al resetear todo')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const desclusterizeAll = async () => {
-    const clusteredCount = keywords.filter(k => k.status === 'clustered').length
-    if (clusteredCount === 0) {
-      alert('No hay keywords clusterizadas para desclusterizar')
-      return
-    }
-    if (!confirm(`¿Desclusterizar todas las ${clusteredCount} keywords? Las descartadas permanecerán como tales.`)) return
-
-    setActionLoading(true)
-    try {
-      const { error } = await supabaseClient
-        .from('d_seo_admin_raw_keywords')
-        .update({ 
-          status: 'pending', 
-          cluster_id: null,
-          intent: null
-        })
-        .eq('status', 'clustered')
-
-      if (error) throw error
-
-      await fetchData()
-      alert('Todas las keywords clusterizadas ahora están pendientes (las descartadas permanecen descartadas)')
-    } catch (err) {
-      console.error('Error:', err)
-      alert('Error al desclusterizar')
     } finally {
       setActionLoading(false)
     }
@@ -581,11 +549,11 @@ export default function KeywordsPage() {
             <div className="text-sm text-gray-500">Total Keywords</div>
           </div>
           
-          {/* Asignadas a SILO */}
-          <Link href="/admin/keywords/silo">
+          {/* Asignadas a Clusters */}
+          <Link href="/admin/keywords/clusters">
             <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500 hover:shadow-md transition-shadow cursor-pointer">
               <div className="text-3xl font-bold text-green-600">{siloAssignedCount}</div>
-              <div className="text-sm text-green-600">Asignadas a SILO</div>
+              <div className="text-sm text-green-600">Asignadas a Clusters</div>
             </div>
           </Link>
           
@@ -609,7 +577,7 @@ export default function KeywordsPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Keywords</h2>
           <p className="text-gray-600">
-            Sistema SILO activo | {siloAssignedCount} keywords asignadas a páginas
+            Sistema de clustering activa | {siloAssignedCount} keywords asignadas a clusters
           </p>
         </div>
         <div className="flex space-x-3">
@@ -628,12 +596,7 @@ export default function KeywordsPage() {
           </Link>
           <Link href="/admin/keywords/proposal">
             <button className="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:from-green-600 hover:to-teal-600">
-              Nueva Propuesta SILO
-            </button>
-          </Link>
-          <Link href="/admin/keywords/silo">
-            <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-              Ver Silos
+              Nueva Propuesta
             </button>
           </Link>
           <button
@@ -654,16 +617,6 @@ export default function KeywordsPage() {
             <Trash2 className="w-4 h-4" />
             <span>Reset Total</span>
           </button>
-          {/* Botón clusters obsoleto - temporalmente oculto */}
-          {/* 
-          <button
-            onClick={desclusterizeAll}
-            disabled={actionLoading}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-          >
-            Desclusterizar Todo
-          </button>
-          */}
         </div>
       </div>
 
@@ -753,7 +706,7 @@ export default function KeywordsPage() {
             <div className="space-y-2">
                 {[
                   { value: 'pending', label: 'Pendientes (disponibles)', color: 'bg-yellow-100 text-yellow-800' },
-                  { value: 'clustered', label: 'Asignadas a SILO', color: 'bg-green-100 text-green-800' },
+                  { value: 'clustered', label: 'Asignadas a Clusters', color: 'bg-green-100 text-green-800' },
                   { value: 'discarded', label: 'Descartadas (para reactivar)', color: 'bg-red-100 text-red-800' }
                 ].map((option) => (
                   <label key={option.value} className="flex items-center space-x-2 cursor-pointer">

@@ -59,6 +59,11 @@ export default function ProposalPage() {
   const [selectedProvider, setSelectedProvider] = useState('')
   const [selectedApiKeyEnvVar, setSelectedApiKeyEnvVar] = useState('')
 
+  // Clusters disponibles para usar en la propuesta
+  const [availableClusters, setAvailableClusters] = useState<{id: string, name: string, entity: string, keyword_count: number}[]>([])
+  const [selectedClusterIds, setSelectedClusterIds] = useState<string[]>([])
+  const [useExistingClusters, setUseExistingClusters] = useState(false)
+
   // Saved proposals from DB
   const [savedProposals, setSavedProposals] = useState<any[]>([])
   const [showProposalsModal, setShowProposalsModal] = useState(false)
@@ -70,7 +75,31 @@ export default function ProposalPage() {
     loadPendingKeywords()
     checkSavedProposal()
     loadSavedProposals()
+    loadAvailableClusters()
   }, [])
+
+  const loadAvailableClusters = async () => {
+    const { data } = await supabaseClient
+      .from('d_seo_admin_keyword_clusters')
+      .select('id, name, entity')
+    
+    if (data) {
+      const clustersWithCount = await Promise.all(
+        data.map(async (cluster) => {
+          const { count } = await supabaseClient
+            .from('d_seo_admin_raw_keywords')
+            .select('id', { count: 'exact', head: true })
+            .eq('cluster_id', cluster.id)
+          
+          return {
+            ...cluster,
+            keyword_count: count || 0
+          }
+        })
+      )
+      setAvailableClusters(clustersWithCount)
+    }
+  }
 
   const checkSavedProposal = () => {
     const saved = localStorage.getItem('dseo_last_proposal')
@@ -250,10 +279,41 @@ export default function ProposalPage() {
       }, 30000) // Actualizar cada 30 segundos (tiempo estimado por batch)
     }
 
+    // Obtener clusters precomputados si se seleccionaron
+    let precomputedClusters: {name: string, entity: string, keywords: string[]}[] | undefined = undefined
+    if (useExistingClusters && selectedClusterIds.length > 0) {
+      const { data: clusterKeywords } = await supabaseClient
+        .from('d_seo_admin_raw_keywords')
+        .select('id, keyword, cluster_id')
+        .in('cluster_id', selectedClusterIds)
+      
+      if (clusterKeywords && clusterKeywords.length > 0) {
+        // Agrupar por cluster
+        const clustersMap = new Map<string, {name: string, entity: string, keywords: string[]}>()
+        
+        for (const kw of clusterKeywords) {
+          const cluster = availableClusters.find(c => c.id === kw.cluster_id)
+          if (!cluster) continue
+          
+          if (!clustersMap.has(cluster.id)) {
+            clustersMap.set(cluster.id, {
+              name: cluster.name,
+              entity: cluster.entity || cluster.name,
+              keywords: []
+            })
+          }
+          clustersMap.get(cluster.id)!.keywords.push(kw.keyword)
+        }
+        
+        precomputedClusters = Array.from(clustersMap.values())
+      }
+    }
+
     try {
       console.log('keywordIds for AI analysis (pending):', keywordIds.length)
       console.log('discardSelected:', discardSelected.length)
       console.log('autoDiscardedCount:', autoDiscardedCount)
+      console.log('precomputedClusters:', precomputedClusters?.length || 0)
 
       if (keywordIds.length === 0) {
         setError('No hay keywords pendientes para analizar. Todas fueron descartadas. Usa el botón "Descartar Todas" para aplicar los descartes.')
@@ -269,7 +329,8 @@ export default function ProposalPage() {
           useExistingSilos,
           model: selectedModel || undefined,
           provider: selectedProvider || undefined,
-          apiKeyEnvVar: selectedApiKeyEnvVar || undefined
+          apiKeyEnvVar: selectedApiKeyEnvVar || undefined,
+          precomputedClusters
         })
       })
 
@@ -654,6 +715,47 @@ export default function ProposalPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Selector de Clusters existentes */}
+              {availableClusters.length > 0 && (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <input
+                      type="checkbox"
+                      id="useExistingClusters"
+                      checked={useExistingClusters}
+                      onChange={(e) => setUseExistingClusters(e.target.checked)}
+                      className="w-4 h-4 text-green-600"
+                    />
+                    <label htmlFor="useExistingClusters" className="font-medium text-green-800">
+                      Usar clusters existentes como base
+                    </label>
+                  </div>
+                  
+                  {useExistingClusters && (
+                    <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                      {availableClusters.map(cluster => (
+                        <label key={cluster.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedClusterIds.includes(cluster.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedClusterIds([...selectedClusterIds, cluster.id])
+                              } else {
+                                setSelectedClusterIds(selectedClusterIds.filter(id => id !== cluster.id))
+                              }
+                            }}
+                            className="w-4 h-4 text-green-600"
+                          />
+                          <span>{cluster.name}</span>
+                          <span className="text-gray-500">({cluster.keyword_count} kw)</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-4 mt-4 items-center">
                 <ModelSelector 
