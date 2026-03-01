@@ -105,12 +105,24 @@ export default function AdminLayout({
           >
             🎯 Clusters
           </Link>
-          <Link
-            href="/admin/keywords/import"
-            className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/import') ? 'bg-gray-800' : ''}`}
-          >
-            📤 Importar CSV
-          </Link>
+           <Link
+             href="/admin/keywords/import"
+             className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/import') ? 'bg-gray-800' : ''}`}
+           >
+             📤 Importar CSV
+           </Link>
+           <Link
+             href="/admin/keywords/urls-wizard"
+             className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname.includes('/urls-wizard') ? 'bg-gray-800' : ''}`}
+           >
+             🔗 Generar URLs
+           </Link>
+           <Link
+             href="/admin/keywords"
+             className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname === '/admin/keywords' ? 'bg-gray-800' : ''}`}
+           >
+             🔑 Keywords
+           </Link>
           <Link
             href="/admin/keywords"
             className={`block px-6 py-2 hover:bg-gray-800 pl-8 ${pathname === '/admin/keywords' ? 'bg-gray-800' : ''}`}

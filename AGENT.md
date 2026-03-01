@@ -1,5 +1,6 @@
 # 🚨 PROTOCOLO CRÍTICO DE INICIO 🚨
 
+SIEMPRE RESPONDES EN CASTELLANO
 **ESTADO:** TIENES AMNESIA DE SESIÓN.
 **ACCIÓN OBLIGATORIA:** Antes de responder, explorar archivos o razonar, DEBES ejecutar:
 `read_memory_scoped(project_id='d-seo_admin', scope='global')`
@@ -11,6 +12,7 @@ Si no indica área de trabajo específica, preguntarle.
 - **Supabase URL**: https://supabase.keepmyweb.com
 - **Project ID**: d-seo_admin
 - **MCP Server**: supabase-api
+- **Supabase ANONKEY**: Está en mcp-supabase.js (!NUNCA EXPONER EN GITHUB!)
 
 Si no ejecutas esta herramienta, estarás trabajando sin contexto y cometerás errores. Tu memoria histórica NO está en los archivos locales, está en Supabase.
 ## 🗂️ Gestión por Temas (Scopes)

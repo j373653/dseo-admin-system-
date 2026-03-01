@@ -594,9 +594,9 @@ export default function KeywordsPage() {
               Importar CSV
             </button>
           </Link>
-          <Link href="/admin/keywords/proposal">
+          <Link href="/admin/keywords/urls-wizard">
             <button className="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:from-green-600 hover:to-teal-600">
-              Nueva Propuesta
+              Generar URLs
             </button>
           </Link>
           <button

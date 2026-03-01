@@ -84,11 +84,26 @@ export default function ModelSelector({ currentTask, onModelChange }: ModelSelec
     setSelectedModel(modelId)
     localStorage.setItem(`${STORAGE_KEY}_model_${currentTask}`, modelId)
     // Buscar el modelo seleccionado para obtener su apiKeyEnvVar
-    const currentModel = currentModels.find(m => m.modelId === modelId)
+    const currentModel = modelsByProvider[selectedProvider]?.find(m => m.modelId === modelId)
     if (onModelChange) {
       onModelChange(modelId, selectedProvider, currentModel?.apiKeyEnvVar)
     }
   }
+
+  // Si ya hay modelo guardado en localStorage pero no en state, cargarlo
+  useEffect(() => {
+    if (!selectedModel && localStorage.getItem(`${STORAGE_KEY}_model_${currentTask}`)) {
+      const savedModel = localStorage.getItem(`${STORAGE_KEY}_model_${currentTask}`)!
+      const savedProvider = localStorage.getItem(`${STORAGE_KEY}_provider_${currentTask}`)
+      if (savedProvider && modelsByProvider[savedProvider]) {
+        setSelectedProvider(savedProvider)
+        const modelList = modelsByProvider[savedProvider]
+        if (modelList.find(m => m.modelId === savedModel)) {
+          setSelectedModel(savedModel)
+        }
+      }
+    }
+  }, [currentTask, modelsByProvider, selectedModel])
 
   if (loading) {
     return (
