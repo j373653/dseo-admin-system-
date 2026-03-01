@@ -58,24 +58,32 @@ async function analyzeBatchWithAI(
   keywords: string[], 
   apiKey: string,
   existingClusters: { name: string; keywords: string[] }[] = [],
+  existingClusteredKeywords: string[] = [],
   aiModel: string = 'gemini-2.5-flash',
   attempt: number = 1
 ): Promise<SemanticAnalysisResult> {
   const MAX_RETRIES = 2
   
   const keywordList = keywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')
+  
   const existingClusterLines = (existingClusters && existingClusters.length > 0)
     ? existingClusters.map(c => `- ${c.name}: ${c.keywords.join(', ')}`).join('\n')
     : ''
 
-  const existingClusterBlock = existingClusterLines ? `EXISTING CLUSTERS:\n${existingClusterLines}\n` : ''
+  const existingClusterBlock = existingClusterLines 
+    ? `EXISTING CLUSTERS (ya creados - NO incluir estas keywords en los nuevos clusters):\n${existingClusterLines}\n`
+    : ''
+  
+  const existingKwWarning = existingClusteredKeywords.length > 0
+    ? `⚠️ IMPORTANTE: Las siguientes keywords YA están clusterizadas. NO las incluyas en los nuevos clusters:\n${existingClusteredKeywords.slice(0, 50).join(', ')}${existingClusteredKeywords.length > 50 ? '...' : ''}\n\n`
+    : ''
   
   const prompt = `Eres un experto en SEO especializado en arquitectura de información y análisis semántico. Analiza estas ${keywords.length} palabras clave para d-seo.es (agencia de desarrollo web, software, IA y SEO).
 
 PALABRAS CLAVE:
 ${keywordList}
 
-${existingClusterBlock}Analiza y devuelve EXACTAMENTE este JSON:
+${existingClusterBlock}${existingKwWarning}Analiza y devuelve EXACTAMENTE este JSON:
 
 {
   "duplicates": [
@@ -259,13 +267,15 @@ JSON:`
     if (attempt <= MAX_RETRIES) {
       console.log(`Retrying batch (attempt ${attempt + 1})...`)
       await new Promise(resolve => setTimeout(resolve, 2000))
-      return analyzeBatchWithAI(keywords, apiKey, existingClusters, aiModel, attempt + 1)
+      return analyzeBatchWithAI(keywords, apiKey, existingClusters, existingClusteredKeywords, aiModel, attempt + 1)
     }
     throw error
   }
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  
   try {
     const { keywords, existingClusters, model, provider, apiKeyEnvVar } = await request.json()
     
@@ -275,6 +285,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Obtener keywords YA clusterizadas (para evitar duplicados en el prompt)
+    const { data: clusteredKeywords } = await supabase
+      .from('d_seo_admin_raw_keywords')
+      .select('keyword')
+      .eq('status', 'clustered')
+    
+    const existingClusteredKeywords = clusteredKeywords 
+      ? clusteredKeywords.map(k => k.keyword.toLowerCase().trim())
+      : []
+    
+    console.log('Existing clustered keywords count:', existingClusteredKeywords.length)
 
     // Obtener modelo por defecto de BBDD si no se proporciona
     let aiModel = model
@@ -343,7 +365,7 @@ export async function POST(request: NextRequest) {
       console.log(`Processing ${batch.length} keywords`)
       
       try {
-        const batchResults = await analyzeBatchWithAI(batch, apiKey, existingClusters || [], aiModel)
+        const batchResults = await analyzeBatchWithAI(batch, apiKey, existingClusters || [], existingClusteredKeywords, aiModel)
         
         allDuplicates.push(...batchResults.duplicates)
         allClusters.push(...batchResults.clusters)

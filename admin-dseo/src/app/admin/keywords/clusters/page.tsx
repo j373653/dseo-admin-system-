@@ -323,6 +323,7 @@ export default function ClustersPage() {
     try {
       let createdClusters = 0
       let assignedKeywords = 0
+      const warnings: string[] = []
 
       // Usar los clusters directamente del resultado
       for (const cluster of results.clusters) {
@@ -343,17 +344,29 @@ export default function ClustersPage() {
         if (newCluster) {
           createdClusters++
           
-          // Obtener IDs de keywords
+          // Obtener IDs de keywords - UNO POR TEXTO (evitar duplicados)
           const keywordTexts = cluster.keywords
-          const { data: keywordsData } = await supabaseClient
-            .from('d_seo_admin_raw_keywords')
-            .select('id, keyword')
-            .in('keyword', keywordTexts)
-
-          if (keywordsData) {
-            const keywordIds = keywordsData.map(k => k.id)
+          const uniqueKeywordIds: string[] = []
+          
+          for (const kwText of keywordTexts) {
+            // Buscar por texto exacto, tomar solo el primero
+            const { data: kwData } = await supabaseClient
+              .from('d_seo_admin_raw_keywords')
+              .select('id, keyword')
+              .ilike('keyword', kwText)
+              .limit(1)
+              .maybeSingle()
             
-            // Actualizar keywords
+            if (kwData) {
+              // Verificar si ya está asignada a otro cluster
+              if (kwData.id && !uniqueKeywordIds.includes(kwData.id)) {
+                uniqueKeywordIds.push(kwData.id)
+              }
+            }
+          }
+          
+          // Actualizar keywords - solo IDs únicos
+          if (uniqueKeywordIds.length > 0) {
             const { error } = await supabaseClient
               .from('d_seo_admin_raw_keywords')
               .update({ 
@@ -361,10 +374,10 @@ export default function ClustersPage() {
                 status: 'clustered',
                 intent: cluster.intent
               })
-              .in('id', keywordIds)
+              .in('id', uniqueKeywordIds)
 
             if (!error) {
-              assignedKeywords += keywordIds.length
+              assignedKeywords += uniqueKeywordIds.length
             }
           }
         }
@@ -377,7 +390,8 @@ export default function ClustersPage() {
       await fetchData()
       
       // Mostrar confirmación
-      alert(`✅ Análisis completado:\n• ${createdClusters} clusters creados\n• ${assignedKeywords} keywords asignadas`)
+      const message = `✅ Análisis completado:\n• ${createdClusters} clusters creados\n• ${assignedKeywords} keywords asignadas${warnings.length > 0 ? '\n⚠️ Advertencias: ' + warnings.slice(0,3).join(', ') : ''}`
+      alert(message)
     } catch (err) {
       console.error('Error applying AI analysis:', err)
       alert('❌ Error al aplicar el análisis de IA')

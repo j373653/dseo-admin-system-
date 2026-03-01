@@ -117,6 +117,43 @@ export default function UrlsWizardPage() {
       return
     }
 
+    // VALIDACIÓN: Detectar keywords duplicadas entre clusters seleccionados
+    const clusterKeywordsMap: Record<string, string[]> = {}
+    for (const clusterId of selectedClusterIds) {
+      const { data: keywords } = await supabaseClient
+        .from('d_seo_admin_raw_keywords')
+        .select('keyword')
+        .eq('cluster_id', clusterId)
+      
+      const cluster = editingClusters.find(c => c.id === clusterId)
+      if (cluster && keywords) {
+        clusterKeywordsMap[clusterId] = keywords.map(k => k.keyword.toLowerCase().trim())
+      }
+    }
+
+    // Encontrar keywords que aparecen en múltiples clusters
+    const keywordToClusters: Record<string, string[]> = {}
+    for (const [clusterId, kws] of Object.entries(clusterKeywordsMap)) {
+      const clusterName = editingClusters.find(c => c.id === clusterId)?.name || clusterId
+      for (const kw of kws) {
+        if (!keywordToClusters[kw]) keywordToClusters[kw] = []
+        keywordToClusters[kw].push(clusterName)
+      }
+    }
+
+    const duplicates = Object.entries(keywordToClusters)
+      .filter(([_, clusters]) => clusters.length > 1)
+      .slice(0, 10) // Limitar a 10 para mostrar
+
+    if (duplicates.length > 0) {
+      const dupList = duplicates.map(([kw, clusters]) => `"${kw}" (en: ${clusters.join(', ')})`).join('\n')
+      const proceed = confirm(`⚠️ ADVERTENCIA: Las siguientes keywords aparecen en múltiples clusters:\n\n${dupList}\n\n${duplicates.length > 10 ? `... y ${duplicates.length - 10} más` : ''}\n\nEsto puede causar canibalización. ¿Continuar de todas formas?`)
+      if (!proceed) {
+        setGeneratingUrls(false)
+        return
+      }
+    }
+
     setGeneratingUrls(true)
     setError('')
 
@@ -260,24 +297,48 @@ export default function UrlsWizardPage() {
 
           // Páginas
           for (const page of pages) {
-            // Buscar keywords IDs para asignar (case-insensitive)
+            // Buscar keywords IDs para asignar (case-insensitive, UNO POR TEXTO)
             const kwIds: string[] = []
-            // main keyword
+            const kwWarnings: string[] = []
+            
+            // main keyword - buscar solo el primero para evitar duplicados
             const { data: mainKw } = await supabaseClient
               .from('d_seo_admin_raw_keywords')
-              .select('id')
+              .select('id, keyword, cluster_id')
               .ilike('keyword', page.main_keyword)
-              .single()
-            if (mainKw) kwIds.push(mainKw.id)
+              .limit(1)
+              .maybeSingle()
+            
+            if (mainKw) {
+              // Verificar si ya está asignada a otro cluster/página
+              if (mainKw.cluster_id) {
+                kwWarnings.push(`"${page.main_keyword}" ya está en otro cluster`)
+              }
+              kwIds.push(mainKw.id)
+            }
 
-            // secondary keywords
+            // secondary keywords - buscar solo el primero para cada una
             for (const sec of page.secondary_keywords) {
               const { data: secKw } = await supabaseClient
                 .from('d_seo_admin_raw_keywords')
-                .select('id')
+                .select('id, keyword, cluster_id')
                 .ilike('keyword', sec)
-                .single()
-              if (secKw) kwIds.push(secKw.id)
+                .limit(1)
+                .maybeSingle()
+              
+              if (secKw) {
+                if (secKw.cluster_id && !kwIds.includes(secKw.id)) {
+                  kwWarnings.push(`"${sec}" ya está en otro cluster`)
+                }
+                if (!kwIds.includes(secKw.id)) {
+                  kwIds.push(secKw.id)
+                }
+              }
+            }
+
+            // Mostrar advertencias si hay keywords ya asignadas
+            if (kwWarnings.length > 0) {
+              console.warn('Keywords warnings:', kwWarnings)
             }
 
             // Crear/actualizar página
