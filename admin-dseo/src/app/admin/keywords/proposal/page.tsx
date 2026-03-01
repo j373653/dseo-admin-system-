@@ -79,9 +79,11 @@ export default function ProposalPage() {
   }, [])
 
   const loadAvailableClusters = async () => {
-    const { data } = await supabaseClient
+    const { data, error } = await supabaseClient
       .from('d_seo_admin_keyword_clusters')
-      .select('id, name, entity')
+      .select('id, name, intent')
+    
+    console.log('Loading clusters:', data, 'error:', error)
     
     if (data) {
       const clustersWithCount = await Promise.all(
@@ -93,6 +95,7 @@ export default function ProposalPage() {
           
           return {
             ...cluster,
+            entity: cluster.intent || cluster.name,
             keyword_count: count || 0
           }
         })
