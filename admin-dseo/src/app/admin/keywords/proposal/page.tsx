@@ -604,6 +604,48 @@ export default function ProposalPage() {
               <p className="text-gray-600 mb-4">
                 Se analizarán {keywords.length} keywords pendientes para verificar que coinciden con la temática de d-seo.es
               </p>
+              
+              {/* Selector de Clusters existentes - disponible desde Paso 1 */}
+              {availableClusters.length > 0 && (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <input
+                      type="checkbox"
+                      id="useExistingClusters"
+                      checked={useExistingClusters}
+                      onChange={(e) => setUseExistingClusters(e.target.checked)}
+                      className="w-4 h-4 text-green-600"
+                    />
+                    <label htmlFor="useExistingClusters" className="font-medium text-green-800">
+                      Usar clusters existentes como base
+                    </label>
+                  </div>
+                  
+                  {useExistingClusters && (
+                    <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                      {availableClusters.map(cluster => (
+                        <label key={cluster.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedClusterIds.includes(cluster.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedClusterIds([...selectedClusterIds, cluster.id])
+                              } else {
+                                setSelectedClusterIds(selectedClusterIds.filter(id => id !== cluster.id))
+                              }
+                            }}
+                            className="w-4 h-4 text-green-600"
+                          />
+                          <span>{cluster.name}</span>
+                          <span className="text-gray-500">({cluster.keyword_count} kw)</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="flex gap-4 flex-wrap">
                 <button
                   onClick={handleFilterByTopic}
