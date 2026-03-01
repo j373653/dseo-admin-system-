@@ -79,13 +79,19 @@ export default function ProposalPage() {
   }, [])
 
   const loadAvailableClusters = async () => {
+    console.log('=== LOADING CLUSTERS ===')
     const { data, error } = await supabaseClient
       .from('d_seo_admin_keyword_clusters')
       .select('id, name, intent')
     
-    console.log('Loading clusters:', data, 'error:', error)
+    console.log('Clusters query result:', { data, error })
     
-    if (data) {
+    if (error) {
+      console.error('Error loading clusters:', error)
+    }
+    
+    if (data && data.length > 0) {
+      console.log('Found clusters:', data.length)
       const clustersWithCount = await Promise.all(
         data.map(async (cluster) => {
           const { count } = await supabaseClient
@@ -100,7 +106,11 @@ export default function ProposalPage() {
           }
         })
       )
+      console.log('Clusters with count:', clustersWithCount)
       setAvailableClusters(clustersWithCount)
+    } else {
+      console.log('No clusters found in DB')
+      setAvailableClusters([])
     }
   }
 
