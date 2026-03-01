@@ -549,21 +549,19 @@ export default function KeywordsPage() {
             <div className="text-sm text-gray-500">Total Keywords</div>
           </div>
           
-          {/* Asignadas a Clusters */}
+          {/* Clusters */}
           <Link href="/admin/keywords/clusters">
             <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500 hover:shadow-md transition-shadow cursor-pointer">
-              <div className="text-3xl font-bold text-green-600">{siloAssignedCount}</div>
-              <div className="text-sm text-green-600">Asignadas a Clusters</div>
+              <div className="text-3xl font-bold text-green-600">{clusters.length}</div>
+              <div className="text-sm text-green-600">Clusters Creados</div>
             </div>
           </Link>
           
           {/* Pendientes */}
-          <Link href="/admin/keywords/proposal">
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500 hover:shadow-md transition-shadow cursor-pointer">
-              <div className="text-3xl font-bold text-yellow-600">{(keywords || []).filter(k => k.status === 'pending').length}</div>
-              <div className="text-sm text-yellow-600">Pendientes (disponibles)</div>
-            </div>
-          </Link>
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="text-3xl font-bold text-yellow-600">{(keywords || []).filter(k => k.status === 'pending').length}</div>
+            <div className="text-sm text-yellow-600">Pendientes (disponibles)</div>
+          </div>
           
           {/* Descartadas */}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-300 opacity-75">
@@ -577,7 +575,7 @@ export default function KeywordsPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Keywords</h2>
           <p className="text-gray-600">
-            Sistema de clustering activa | {siloAssignedCount} keywords asignadas a clusters
+            Sistema de clusters SEO | {clusters.length} clusters creados
           </p>
         </div>
         <div className="flex space-x-3">

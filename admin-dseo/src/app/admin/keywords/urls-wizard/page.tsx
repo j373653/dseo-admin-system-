@@ -1,25 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { supabaseClient } from '@/lib/supabase'
 import ModelSelector from '@/components/ModelSelector'
 import { 
   Loader2, ChevronRight, ChevronLeft, Check, 
-  Network, GitBranch, Link2, ArrowRight
+  Network, GitBranch, Link2, ArrowRight, Square, CheckSquare
 } from 'lucide-react'
-
-interface Keyword {
-  id: string
-  keyword: string
-  search_volume: number
-  difficulty: number | null
-}
 
 interface Cluster {
   id: string
   name: string
   intent: string
-  keywords: string[]
+  keyword_count: number
 }
 
 interface UrlPage {
@@ -35,22 +29,34 @@ interface UrlPage {
   internal_linking: string[]
 }
 
+function getIntentBadgeColor(intent: string | null | undefined): string {
+  const colors: Record<string, string> = {
+    transactional: 'bg-blue-100 text-blue-800',
+    commercial: 'bg-purple-100 text-purple-800',
+    informational: 'bg-green-100 text-green-800',
+    navigational: 'bg-yellow-100 text-yellow-800',
+  }
+  return colors[intent || ''] || 'bg-gray-100 text-gray-800'
+}
+
+function getIntentLabel(intent: string | null | undefined): string {
+  if (!intent) return '-'
+  return intent.charAt(0).toUpperCase() + intent.slice(1)
+}
+
 export default function UrlsWizardPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // Paso 1: Keywords
-  const [keywords, setKeywords] = useState<Keyword[]>([])
-  const [selectedKeywordIds, setSelectedKeywordIds] = useState<string[]>([])
-  const [loadingKeywords, setLoadingKeywords] = useState(true)
-
-  // Paso 2: Clusters
+  // Paso 1: Clusters de BD
   const [clusters, setClusters] = useState<Cluster[]>([])
-  const [analyzingClusters, setAnalyzingClusters] = useState(false)
-  const [editingClusters, setEditingClusters] = useState<Cluster[]>([])
   const [selectedClusterIds, setSelectedClusterIds] = useState<string[]>([])
+  const [loadingClusters, setLoadingClusters] = useState(true)
+
+  // Paso 2: Clusters editados (para generar URLs)
+  const [editingClusters, setEditingClusters] = useState<Cluster[]>([])
 
   // Paso 3: URLs
   const [generatingUrls, setGeneratingUrls] = useState(false)
@@ -62,95 +68,42 @@ export default function UrlsWizardPage() {
   const [selectedProvider, setSelectedProvider] = useState('')
   const [selectedApiKeyEnvVar, setSelectedApiKeyEnvVar] = useState('')
 
-  // Cargar keywords pendientes al inicio
+  // Cargar clusters de BD al inicio
   useEffect(() => {
-    loadPendingKeywords()
+    loadClusters()
   }, [])
 
-  const loadPendingKeywords = async () => {
+  const loadClusters = async () => {
     try {
+      setLoadingClusters(true)
       const { data } = await supabaseClient
-        .from('d_seo_admin_raw_keywords')
-        .select('id, keyword, search_volume, difficulty')
-        .eq('status', 'pending')
-        .order('search_volume', { ascending: false })
-      setKeywords(data || [])
+        .from('d_seo_admin_keyword_clusters')
+        .select('id, name, intent, keyword_count')
+        .order('keyword_count', { ascending: false })
+      setClusters(data || [])
     } catch (err: any) {
-      console.error('Error loading keywords:', err)
-      setError('Error cargando keywords')
+      console.error('Error loading clusters:', err)
+      setError('Error cargando clusters')
     } finally {
-      setLoadingKeywords(false)
+      setLoadingClusters(false)
     }
-  }
-
-  const toggleKeyword = (id: string) => {
-    setSelectedKeywordIds(prev => 
-      prev.includes(id) ? prev.filter(k => k !== id) : [...prev, id]
-    )
-  }
-
-  // Paso 2: Analizar clusters
-  const analyzeClusters = async () => {
-    if (selectedKeywordIds.length === 0) {
-      setError('Selecciona al menos una keyword')
-      return
-    }
-    if (!selectedModel) {
-      setError('Selecciona un modelo de IA')
-      return
-    }
-
-    setAnalyzingClusters(true)
-    setError('')
-
-    try {
-      const selectedKeywords = keywords.filter(k => selectedKeywordIds.includes(k.id)).map(k => k.keyword)
-      
-      const res = await fetch('/api/ai/analyze-keywords', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keywords: selectedKeywords,
-          model: selectedModel,
-          provider: selectedProvider,
-          apiKeyEnvVar: selectedApiKeyEnvVar
-        })
-      })
-
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Error en análisis')
-
-      // Mapear clusters al formato esperado
-      const clustersMapping = (data.clusters || []).map((c: any, idx: number) => ({
-        id: `cluster_${idx}_${Date.now()}`,
-        name: c.name,
-        intent: c.intent || 'informational',
-        keywords: c.keywords || []
-      }))
-
-      setClusters(clustersMapping)
-      setEditingClusters(clustersMapping)
-      setSelectedClusterIds(clustersMapping.map((c: any) => c.id))
-      setStep(2)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setAnalyzingClusters(false)
-    }
-  }
-
-  // Paso 2: Editar clusters
-  const updateClusterName = (clusterId: string, newName: string) => {
-    setEditingClusters(prev => prev.map((c: any) => 
-      c.id === clusterId ? { ...c, name: newName } : c
-    ))
   }
 
   const toggleClusterSelection = (clusterId: string) => {
     setSelectedClusterIds(prev => 
-      prev.includes(clusterId) ? prev.filter(id => id !== clusterId) : [...prev, clusterId]
+      prev.includes(clusterId) 
+        ? prev.filter(id => id !== clusterId)
+        : [...prev, clusterId]
     )
   }
+
+  const handleNextFromStep1 = () => {
+    const selected = clusters.filter(c => selectedClusterIds.includes(c.id))
+    setEditingClusters(selected)
+    setStep(2)
+  }
+
+  // Paso 2: Generar URLs desde clusters
 
   // Paso 2 → Paso 3: Generar URLs
   const generateUrlsFromClusters = async () => {
@@ -159,12 +112,33 @@ export default function UrlsWizardPage() {
       return
     }
 
+    if (!selectedModel) {
+      setError('Selecciona un modelo de IA')
+      return
+    }
+
     setGeneratingUrls(true)
     setError('')
 
     try {
-      // Mapear clusters seleccionados (usar los de editingClusters)
-      const selectedClusters = editingClusters.filter(c => selectedClusterIds.includes(c.id))
+      // Obtener keywords de los clusters seleccionados
+      const clustersWithKeywords: any[] = []
+      for (const clusterId of selectedClusterIds) {
+        const { data: keywords } = await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .select('keyword')
+          .eq('cluster_id', clusterId)
+        
+        const cluster = editingClusters.find(c => c.id === clusterId)
+        if (cluster) {
+          clustersWithKeywords.push({
+            id: cluster.id,
+            name: cluster.name,
+            intent: cluster.intent || 'informational',
+            keywords: keywords?.map(k => k.keyword) || []
+          })
+        }
+      }
 
       // Obtener estructura existente (si la hay) para pasar al backend
       const { data: existingSilos } = await supabaseClient
@@ -187,7 +161,7 @@ export default function UrlsWizardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clusters: selectedClusters,
+          clusters: clustersWithKeywords,
           existingStructure,
           model: selectedModel,
           provider: selectedProvider,
@@ -286,13 +260,13 @@ export default function UrlsWizardPage() {
 
           // Páginas
           for (const page of pages) {
-            // Buscar keywords IDs para asignar
+            // Buscar keywords IDs para asignar (case-insensitive)
             const kwIds: string[] = []
             // main keyword
             const { data: mainKw } = await supabaseClient
               .from('d_seo_admin_raw_keywords')
               .select('id')
-              .eq('keyword', page.main_keyword)
+              .ilike('keyword', page.main_keyword)
               .single()
             if (mainKw) kwIds.push(mainKw.id)
 
@@ -301,7 +275,7 @@ export default function UrlsWizardPage() {
               const { data: secKw } = await supabaseClient
                 .from('d_seo_admin_raw_keywords')
                 .select('id')
-                .eq('keyword', sec)
+                .ilike('keyword', sec)
                 .single()
               if (secKw) kwIds.push(secKw.id)
             }
@@ -320,8 +294,6 @@ export default function UrlsWizardPage() {
                 content_difficulty: page.content_difficulty,
                 internal_linking: page.internal_linking
               }, { onConflict: 'slug' })
-            // Aquí deberíamos también crear asignaciones de keywords
-            // Pero por simplicidad, dejamos pendiente
           }
         }
       }
@@ -337,7 +309,7 @@ export default function UrlsWizardPage() {
     }
   }
 
-  if (loadingKeywords) {
+  if (loadingClusters) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -365,9 +337,9 @@ export default function UrlsWizardPage() {
       {/* Wizard Steps Indicator */}
       <div className="flex items-center mb-8">
         {[
-          {num: 1, label: 'Seleccionar Keywords'},
-          {num: 2, label: 'Revisar Clusters'},
-          {num: 3, label: 'Generar URLs'}
+          {num: 1, label: 'Seleccionar Clusters'},
+          {num: 2, label: 'Generar URLs'},
+          {num: 3, label: 'Revisar y Aplicar'}
         ].map((s, idx) => (
           <div key={s.num} className="flex items-center flex-1">
             <div className={`flex items-center justify-center w-10 h-10 rounded-full ${step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
@@ -381,71 +353,107 @@ export default function UrlsWizardPage() {
         ))}
       </div>
 
-      {/* Paso 1: Seleccionar Keywords */}
+      {/* Paso 1: Seleccionar Clusters */}
       {step === 1 && (
         <div>
-          <div className="mb-4 flex items-center gap-4">
+          <h2 className="text-xl font-semibold mb-4">Paso 1: Seleccionar Clusters</h2>
+          <p className="text-gray-600 mb-4">
+            Selecciona los clusters existentes para generar la estructura de URLs.
+            Cada cluster se convertirá en páginas pilares y de soporte.
+          </p>
+          
+          {loadingClusters ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+              <span className="ml-2">Cargando clusters...</span>
+            </div>
+          ) : clusters.length === 0 ? (
+            <div className="p-8 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+              <p className="text-yellow-800">No hay clusters creados.</p>
+              <p className="text-yellow-700 mt-2">
+                Ve a <Link href="/admin/keywords/clusters" className="text-blue-600 hover:underline">Clusters</Link> para crear clusters primero.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {clusters.map(cluster => (
+                <div 
+                  key={cluster.id}
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedClusterIds.includes(cluster.id)
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => toggleClusterSelection(cluster.id)}
+                >
+                  <div className="flex items-start">
+                    <div className="mr-3 mt-1">
+                      {selectedClusterIds.includes(cluster.id) ? (
+                        <CheckSquare className="w-5 h-5 text-blue-600" />
+                      ) : (
+                        <Square className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900">{cluster.name}</h3>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${getIntentBadgeColor(cluster.intent)}`}>
+                          {getIntentLabel(cluster.intent)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {cluster.keyword_count || 0} keywords
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={handleNextFromStep1}
+              disabled={selectedClusterIds.length === 0}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente ({selectedClusterIds.length} clusters seleccionados)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paso 2: Generar URLs */}
+      {step === 2 && (
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Paso 2: Generar URLs</h2>
+          <p className="text-gray-600 mb-4">
+            La IA analizará los clusters seleccionados y propondrá una estructura de URLs optimizada.
+          </p>
+
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h3 className="font-medium mb-3">Clusters seleccionados:</h3>
+            <div className="flex flex-wrap gap-2">
+              {editingClusters.map(cluster => (
+                <span key={cluster.id} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                  {cluster.name}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-6">
             <ModelSelector 
-              currentTask="cluster"
+              currentTask="silo"
               onModelChange={(m, p, k) => {
                 setSelectedModel(m)
                 setSelectedProvider(p)
                 setSelectedApiKeyEnvVar(k || '')
               }}
             />
-            <button
-              onClick={analyzeClusters}
-              disabled={analyzingClusters || selectedKeywordIds.length === 0 || !selectedModel}
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {analyzingClusters ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Network className="w-4 h-4" />
-              )}
-              Continuar
-            </button>
           </div>
 
-          <div className="bg-white border rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-3 text-left w-12">Sel</th>
-                  <th className="p-3 text-left">Keyword</th>
-                  <th className="p-3 text-left">Volumen</th>
-                  <th className="p-3 text-left">Dificultad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keywords.map(k => (
-                  <tr key={k.id} className="border-t hover:bg-gray-50">
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedKeywordIds.includes(k.id)}
-                        onChange={() => toggleKeyword(k.id)}
-                        className="w-4 h-4"
-                      />
-                    </td>
-                    <td className="p-3">{k.keyword}</td>
-                    <td className="p-3">{k.search_volume?.toLocaleString()}</td>
-                    <td className="p-3">{k.difficulty || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-sm text-gray-600">
-            {selectedKeywordIds.length} keywords seleccionadas
-          </p>
-        </div>
-      )}
-
-      {/* Paso 2: Revisar Clusters */}
-      {step === 2 && (
-        <div>
-          <div className="mb-4 flex items-center gap-4">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setStep(1)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
@@ -454,7 +462,7 @@ export default function UrlsWizardPage() {
             </button>
             <button
               onClick={generateUrlsFromClusters}
-              disabled={generatingUrls || selectedClusterIds.length === 0}
+              disabled={generatingUrls || selectedClusterIds.length === 0 || !selectedModel}
               className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
             >
               {generatingUrls ? (
@@ -462,55 +470,13 @@ export default function UrlsWizardPage() {
               ) : (
                 <GitBranch className="w-4 h-4" />
               )}
-              Generar URLs
+              Generar URLs con IA
             </button>
-          </div>
-
-          <p className="mb-4 text-gray-600">
-            Selecciona los clusters que quieres usar para generar URLs
-          </p>
-
-          <div className="space-y-4">
-            {editingClusters.map(cluster => (
-              <div key={cluster.id} className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedClusterIds.includes(cluster.id)}
-                      onChange={() => toggleClusterSelection(cluster.id)}
-                      className="w-5 h-5"
-                    />
-                    <div>
-                      <input
-                        type="text"
-                        value={cluster.name}
-                        onChange={(e) => updateClusterName(cluster.id, e.target.value)}
-                        className="font-bold text-lg bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500"
-                      />
-                      <p className="text-sm text-gray-600">
-                        Intención: {cluster.intent}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                    {cluster.keywords.length} keywords
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {cluster.keywords.map(kw => (
-                    <span key={kw} className="bg-gray-200 px-2 py-1 rounded text-sm">
-                      {kw}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
 
-      {/* Paso 3: Generar URLs */}
+      {/* Paso 3: Revisar y Aplicar */}
       {step === 3 && (
         <div>
           <div className="mb-4 flex items-center gap-4">
