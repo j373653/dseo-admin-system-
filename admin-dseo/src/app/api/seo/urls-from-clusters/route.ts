@@ -13,7 +13,7 @@ interface ClusterData {
 }
 
 interface UrlsFromClustersRequest {
-  clusterIds: string[]
+  clusters?: any[]
   existingStructure?: any
   model?: string
   provider?: string
@@ -23,41 +23,24 @@ interface UrlsFromClustersRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: UrlsFromClustersRequest = await request.json()
-    const { clusterIds, existingStructure, model, provider, apiKeyEnvVar } = body
+    const { clusters: clustersFromClient, existingStructure, model, provider, apiKeyEnvVar } = body
 
-    if (!clusterIds || clusterIds.length === 0) {
-      return NextResponse.json({ error: 'Se requieren IDs de clusters' }, { status: 400 })
+    if (!clustersFromClient || clustersFromClient.length === 0) {
+      return NextResponse.json({ error: 'Se requieren clusters' }, { status: 400 })
     }
 
-    // 1. Obtener clusters de BD
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    const { data: clusters, error: clustersError } = await supabase
-      .from('d_seo_admin_keyword_clusters')
-      .select('id, name, entity, intent, keyword_count')
-      .in('id', clusterIds)
 
-    if (clustersError) {
-      return NextResponse.json({ error: clustersError.message }, { status: 500 })
-    }
+    // 1. Usar clusters del cliente (ya contienen keywords del análisis)
+    const clustersWithKeywords: ClusterData[] = clustersFromClient.map((cluster: any) => ({
+      id: cluster.id,
+      name: cluster.name,
+      entity: cluster.name,
+      intent: cluster.intent || 'informational',
+      keywords: cluster.keywords || []
+    }))
 
-    // 2. Obtener keywords de cada cluster
-    const clustersWithKeywords: ClusterData[] = []
-    for (const cluster of clusters) {
-      const { data: keywords } = await supabase
-        .from('d_seo_admin_raw_keywords')
-        .select('keyword')
-        .eq('cluster_id', cluster.id)
-
-      clustersWithKeywords.push({
-        id: cluster.id,
-        name: cluster.name,
-        entity: cluster.entity || cluster.name,
-        intent: cluster.intent || 'informational',
-        keywords: keywords?.map(k => k.keyword) || []
-      })
-    }
-
-    // 3. Obtener estructura existente (URLs ya creadas)
+    // 2. Obtener estructura existente (URLs ya creadas)
     let existingUrls: string[] = []
     if (existingStructure) {
       existingUrls = extractExistingSlugs(existingStructure)
@@ -69,7 +52,7 @@ export async function POST(request: NextRequest) {
       existingUrls = pages?.map(p => p.slug) || []
     }
 
-    // 4. Seleccionar modelo IA
+    // 3. Seleccionar modelo IA
     let aiModel = model || await getDefaultModel('silo')
     let apiKey = await getApiKey(aiModel, provider, apiKeyEnvVar)
 
@@ -77,14 +60,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'API key no configurada' }, { status: 500 })
     }
 
-    // 5. Construir prompt para IA
+    // 4. Construir prompt para IA
     const prompt = buildUrlsPrompt(clustersWithKeywords, existingUrls)
 
-    // 6. Llamar a IA (Gemini)
+    // 5. Llamar a IA (Gemini)
     const aiResponse = await callGemini(prompt, apiKey, aiModel)
     const parsed = parseAIResponse(aiResponse)
 
-    // 7. Devolver estructura
+    // 6. Devolver estructura
     return NextResponse.json({ 
       success: true, 
       urls: parsed.urls,

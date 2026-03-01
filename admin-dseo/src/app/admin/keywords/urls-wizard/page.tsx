@@ -18,7 +18,6 @@ interface Keyword {
 interface Cluster {
   id: string
   name: string
-  entity: string
   intent: string
   keywords: string[]
 }
@@ -125,7 +124,6 @@ export default function UrlsWizardPage() {
       const clustersMapping = (data.clusters || []).map((c: any, idx: number) => ({
         id: `cluster_${idx}_${Date.now()}`,
         name: c.name,
-        entity: c.entity || c.name,
         intent: c.intent || 'informational',
         keywords: c.keywords || []
       }))
@@ -189,7 +187,7 @@ export default function UrlsWizardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clusterIds: selectedClusters.map(c => c.id),
+          clusters: selectedClusters,
           existingStructure,
           model: selectedModel,
           provider: selectedProvider,
@@ -491,7 +489,7 @@ export default function UrlsWizardPage() {
                         className="font-bold text-lg bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500"
                       />
                       <p className="text-sm text-gray-600">
-                        Entidad: {cluster.entity} · Intención: {cluster.intent}
+                        Intención: {cluster.intent}
                       </p>
                     </div>
                   </div>
