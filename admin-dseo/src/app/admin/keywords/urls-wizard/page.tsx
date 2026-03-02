@@ -158,8 +158,11 @@ export default function UrlsWizardPage() {
     setError('')
 
     try {
-      // Obtener keywords de los clusters seleccionados
+      // Obtener keywords de los clusters seleccionados (DEDUPLICADAS por texto normalizado)
       const clustersWithKeywords: any[] = []
+      const allKeywordsSet = new Set<string>() // Para detectar duplicados globales
+      const duplicateWarnings: string[] = []
+
       for (const clusterId of selectedClusterIds) {
         const { data: keywords } = await supabaseClient
           .from('d_seo_admin_raw_keywords')
@@ -167,14 +170,42 @@ export default function UrlsWizardPage() {
           .eq('cluster_id', clusterId)
         
         const cluster = editingClusters.find(c => c.id === clusterId)
-        if (cluster) {
+        if (cluster && keywords) {
+          // DEDUPLICAR dentro del cluster (normalizar texto)
+          const uniqueKeywords: string[] = []
+          const seenNormalized = new Set<string>()
+          
+          for (const kw of keywords.map(k => k.keyword)) {
+            const normalized = kw.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            if (!seenNormalized.has(normalized)) {
+              seenNormalized.add(normalized)
+              uniqueKeywords.push(kw) // Mantener original
+            } else {
+              duplicateWarnings.push(`"${kw}" en cluster "${cluster.name}" - duplicado eliminado`)
+            }
+          }
+
+          // Detectar duplicados contra otros clusters
+          for (const kw of uniqueKeywords) {
+            const norm = kw.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            if (allKeywordsSet.has(norm)) {
+              duplicateWarnings.push(`"${kw}" aparece en múltiples clusters - causará canibalización`)
+            } else {
+              allKeywordsSet.add(norm)
+            }
+          }
+
           clustersWithKeywords.push({
             id: cluster.id,
             name: cluster.name,
             intent: cluster.intent || 'informational',
-            keywords: keywords?.map(k => k.keyword) || []
+            keywords: uniqueKeywords
           })
         }
+      }
+
+      if (duplicateWarnings.length > 0) {
+        console.warn('Duplicate warnings:', duplicateWarnings)
       }
 
       // Obtener estructura existente (si la hay) para pasar al backend
@@ -208,6 +239,22 @@ export default function UrlsWizardPage() {
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error generando URLs')
+
+      // Capturar warnings de validación
+      const validation = data.validation || {}
+      const warnings = validation.warnings || []
+      const duplicateKeywords = validation.duplicate_keywords || []
+
+      // Mostrar advertencias de duplicados detectados por IA
+      if (duplicateKeywords.length > 0) {
+        const dupList = duplicateKeywords.slice(0, 10).join(';\n')
+        alert(`⚠️ Advertencia: La IA detectó keywords duplicadas (normalizadas):\n\n${dupList}${duplicateKeywords.length > 10 ? '\n... y ' + (duplicateKeywords.length - 10) + ' más' : ''}\n\nSe han agrupado automáticamente para evitar canibalización.`)
+      }
+
+      // Mostrar otros warnings
+      if (warnings.length > 0) {
+        console.warn('Warnings from AI:', warnings)
+      }
 
       setGeneratedUrls(data.urls || [])
       setEditingUrls(data.urls || [])

@@ -219,6 +219,27 @@ INSTRUCCIONES GENERALES:
    - SEO & Marketing Digital
 4. NO duplicar slugs existentes. Si existe, añadir sufijo (-2, -3...).
 
+═══════════════════════════════════════════════════════════════════════════════
+VALIDACIÓN DE DATOS (IMPORTANTE - DETECTAR PROBLEMAS):
+═══════════════════════════════════════════════════════════════════════════════
+
+Antes de generar, verifica:
+
+1. DUPLICADOS NORMALIZADOS:
+   - Si encuentras keywords que son idénticas al normalizar (quitar tildes, espacios, mayúsculas)
+     Ej: "diseño de páginas" vs "diseño de paginas"
+   - Debes-agruparlas y Reportarlas en validation.warnings
+   - Usa solo UNA representación (la más limpia) en las páginas
+
+2. DISTRIBUCIÓN CORRECTA:
+   - CADA keyword del cluster debe aparecer como main_keyword en exactamente UNA página
+   - Verifica que no falta ninguna keyword
+   - Verifica que no hay duplicados como main
+
+Si encuentras problemas, inclúyelos en validation.warnings y genera URLs solo con las keywords válidas.
+
+═══════════════════════════════════════════════════════════════════════════════
+
 SALIDA JSON (estricto):
 {
   "urls": [
@@ -247,12 +268,13 @@ SALIDA JSON (estricto):
       "internal_linking": ["/servicios/seo/agencia-seo-barcelona"]
     }
   ],
-  "validation": {
-    "duplicate_slugs": [],
-    "clusters_without_pages": [],
-    "warnings": []
-  }
-}
+   "validation": {
+     "duplicate_slugs": [],
+     "duplicate_keywords": [], // Lista de keywords duplicadas (normalizadas) encontradas
+     "clusters_without_pages": [],
+     "warnings": [] // Advertencias adicionales
+   }
+ 
 
 IMPORTANTE:
 - Devuelve EXCLUSIVAMENTE el JSON, sin texto adicional.
