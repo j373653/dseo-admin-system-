@@ -6,7 +6,7 @@ import { supabaseClient } from '@/lib/supabase'
 import ModelSelector from '@/components/ModelSelector'
 import { 
   Loader2, ChevronRight, ChevronLeft, Check, 
-  Network, GitBranch, Link2, ArrowRight, Square, CheckSquare
+  Network, GitBranch, Link2, ArrowRight, Square, CheckSquare, Edit2
 } from 'lucide-react'
 
 interface Cluster {
@@ -44,6 +44,13 @@ function getIntentLabel(intent: string | null | undefined): string {
   return intent.charAt(0).toUpperCase() + intent.slice(1)
 }
 
+function normalizeKeyword(text: string): string {
+  return text.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
 export default function UrlsWizardPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -54,6 +61,15 @@ export default function UrlsWizardPage() {
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [selectedClusterIds, setSelectedClusterIds] = useState<string[]>([])
   const [loadingClusters, setLoadingClusters] = useState(true)
+
+  // Editor de keywords de cluster
+  const [selectedClusterForEditing, setSelectedClusterForEditing] = useState<Cluster | null>(null)
+  const [clusterKeywords, setClusterKeywords] = useState<any[]>([]) // {id, keyword, search_volume, difficulty, checked}
+  const [originalClusterKeywords, setOriginalClusterKeywords] = useState<any[]>([])
+  const [clusterKeywordFilter, setClusterKeywordFilter] = useState('')
+  const [clusterKeywordSort, setClusterKeywordSort] = useState<'keyword' | 'volume'>('keyword')
+  const [clusterKeywordOrder, setClusterKeywordOrder] = useState<'asc' | 'desc'>('asc')
+  const [savingClusterKeywords, setSavingClusterKeywords] = useState(false)
 
   // Paso 2: Clusters editados (para generar URLs)
   const [editingClusters, setEditingClusters] = useState<Cluster[]>([])
@@ -90,6 +106,14 @@ export default function UrlsWizardPage() {
   }
 
   const toggleClusterSelection = (clusterId: string) => {
+    // Si ya está seleccionado, abrir editor en lugar de deseleccionar
+    if (selectedClusterIds.includes(clusterId)) {
+      const cluster = clusters.find(c => c.id === clusterId)
+      if (cluster) {
+        openClusterEditor(cluster)
+        return
+      }
+    }
     setSelectedClusterIds(prev => 
       prev.includes(clusterId) 
         ? prev.filter(id => id !== clusterId)
@@ -97,11 +121,119 @@ export default function UrlsWizardPage() {
     )
   }
 
+  // Editor de keywords de cluster
+  const openClusterEditor = async (cluster: Cluster) => {
+    setSelectedClusterForEditing(cluster)
+    try {
+      const { data } = await supabaseClient
+        .from('d_seo_admin_raw_keywords')
+        .select('id, keyword, search_volume, difficulty')
+        .eq('cluster_id', cluster.id)
+      const keywordsWithChecked = (data || []).map(k => ({ ...k, checked: true }))
+      setClusterKeywords(keywordsWithChecked)
+      setOriginalClusterKeywords(keywordsWithChecked)
+    } catch (err) {
+      console.error('Error loading cluster keywords:', err)
+      alert('Error cargando keywords del cluster')
+    }
+  }
+
+  const closeClusterEditor = () => {
+    setSelectedClusterForEditing(null)
+    setClusterKeywords([])
+    setOriginalClusterKeywords([])
+    setClusterKeywordFilter('')
+  }
+
+  const toggleKeywordChecked = (keywordId: string) => {
+    setClusterKeywords(prev => prev.map(k => 
+      k.id === keywordId ? { ...k, checked: !k.checked } : k
+    ))
+  }
+
+  const detectDuplicates = (keywords: any[]) => {
+    const seen = new Map<string, string[]>()
+    keywords.forEach(k => {
+      const norm = normalizeKeyword(k.keyword)
+      if (!seen.has(norm)) seen.set(norm, [])
+      seen.get(norm)!.push(k.keyword)
+    })
+    return Array.from(seen.entries())
+      .filter(([_, originals]) => originals.length > 1)
+      .map(([norm, originals]) => ({ norm, originals }))
+  }
+
+  const getSortedAndFilteredKeywords = () => {
+    let filtered = clusterKeywords.filter(k => 
+      k.keyword.toLowerCase().includes(clusterKeywordFilter.toLowerCase())
+    )
+    
+    // Ordenar
+    filtered.sort((a, b) => {
+      let aVal: any, bVal: any
+      
+      if (clusterKeywordSort === 'keyword') {
+        aVal = normalizeKeyword(a.keyword)
+        bVal = normalizeKeyword(b.keyword)
+      } else {
+        aVal = a.search_volume || 0
+        bVal = b.search_volume || 0
+      }
+      
+      if (clusterKeywordOrder === 'asc') {
+        return aVal > bVal ? 1 : -1
+      } else {
+        return aVal < bVal ? 1 : -1
+      }
+    })
+    
+    return filtered
+  }
+
+  const handleSaveClusterKeywords = async () => {
+    if (!selectedClusterForEditing) return
+    
+    setSavingClusterKeywords(true)
+    try {
+      // IDs que fueron desmarcadas (eliminar del cluster)
+      const uncheckedIds = originalClusterKeywords
+        .filter(ok => !clusterKeywords.find(ck => ck.id === ok.id && ck.checked))
+        .map(ok => ok.id)
+      
+      if (uncheckedIds.length > 0) {
+        const { error } = await supabaseClient
+          .from('d_seo_admin_raw_keywords')
+          .update({ cluster_id: null, status: 'pending' })
+          .in('id', uncheckedIds)
+        
+        if (error) {
+          console.error('Error updating keywords:', error)
+          alert('Error al guardar cambios')
+          setSavingClusterKeywords(false)
+          return
+        }
+      }
+      
+      // Cerrar y recargar clusters
+      closeClusterEditor()
+      await loadClusters()
+      alert(`✅ Cambios guardados: ${uncheckedIds.length} keywords eliminadas del cluster`)
+    } catch (err) {
+      console.error('Error saving:', err)
+      alert('Error al guardar')
+    } finally {
+      setSavingClusterKeywords(false)
+    }
+  }
+
   const handleNextFromStep1 = () => {
     const selected = clusters.filter(c => selectedClusterIds.includes(c.id))
     setEditingClusters(selected)
     setStep(2)
   }
+
+  // Calcular duplicados para mostrar en el drawer
+  const duplicatesInCluster = detectDuplicates(clusterKeywords)
 
   // Paso 2: Generar URLs desde clusters
 
@@ -482,52 +614,64 @@ export default function UrlsWizardPage() {
                 Ve a <Link href="/admin/keywords/clusters" className="text-blue-600 hover:underline">Clusters</Link> para crear clusters primero.
               </p>
             </div>
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {clusters.map(cluster => (
-                <div 
-                  key={cluster.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedClusterIds.includes(cluster.id)
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => toggleClusterSelection(cluster.id)}
-                >
-                  <div className="flex items-start">
-                    <div className="mr-3 mt-1">
-                      {selectedClusterIds.includes(cluster.id) ? (
-                        <CheckSquare className="w-5 h-5 text-blue-600" />
-                      ) : (
-                        <Square className="w-5 h-5 text-gray-400" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">{cluster.name}</h3>
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${getIntentBadgeColor(cluster.intent)}`}>
-                          {getIntentLabel(cluster.intent)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        {cluster.keyword_count || 0} keywords
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+           ) : (
+             <div className="space-y-3 max-h-96 overflow-y-auto">
+               {clusters.map(cluster => (
+                 <div 
+                   key={cluster.id}
+                   className={`p-4 border rounded-lg transition-colors ${
+                     selectedClusterIds.includes(cluster.id)
+                       ? 'border-blue-500 bg-blue-50'
+                       : 'border-gray-200 hover:border-gray-300'
+                   }`}
+                   onClick={(e) => {
+                     if ((e.target as HTMLElement).closest('.edit-cluster-btn')) return
+                     toggleClusterSelection(cluster.id)
+                   }}
+                 >
+                   <div className="flex items-start justify-between">
+                     <div className="flex items-start flex-1">
+                       <div className="mr-3 mt-1">
+                         {selectedClusterIds.includes(cluster.id) ? (
+                           <CheckSquare className="w-5 h-5 text-blue-600" />
+                         ) : (
+                           <Square className="w-5 h-5 text-gray-400" />
+                         )}
+                       </div>
+                       <div className="flex-1">
+                         <div className="flex items-center gap-2 mb-1">
+                           <h3 className="font-semibold text-gray-900">{cluster.name}</h3>
+                           <span className={`px-2 py-0.5 text-xs rounded-full ${getIntentBadgeColor(cluster.intent)}`}>
+                             {getIntentLabel(cluster.intent)}
+                           </span>
+                         </div>
+                         <p className="text-sm text-gray-600">
+                           {cluster.keyword_count || 0} keywords
+                         </p>
+                       </div>
+                     </div>
+                      <button
+                        className="edit-cluster-btn ml-4 px-3 py-1 bg-gray-100 hover:bg-gray-200 text-sm rounded flex items-center gap-1"
+                        onClick={() => openClusterEditor(cluster)}
+                      >
+                       <Edit2 className="w-4 h-4" />
+                       Editar
+                     </button>
+                   </div>
+                 </div>
+               ))}
+             </div>
+           )}
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={handleNextFromStep1}
+                disabled={selectedClusterIds.length === 0}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Siguiente ({selectedClusterIds.length} clusters seleccionados)
+              </button>
             </div>
-          )}
-          
-          <div className="mt-6 flex justify-end">
-            <button
-              onClick={handleNextFromStep1}
-              disabled={selectedClusterIds.length === 0}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Siguiente ({selectedClusterIds.length} clusters seleccionados)
-            </button>
-          </div>
         </div>
       )}
 
@@ -690,6 +834,138 @@ export default function UrlsWizardPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Drawer Editor de Keywords */}
+      {selectedClusterForEditing && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={closeClusterEditor}
+          />
+          <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-xl z-50 flex flex-col">
+            <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-lg">{selectedClusterForEditing.name}</h3>
+                <p className="text-sm text-gray-600">
+                  {clusterKeywords.length} keywords · {duplicatesInCluster.length} duplicados
+                </p>
+              </div>
+              <button 
+                onClick={closeClusterEditor}
+                className="p-1 hover:bg-gray-200 rounded"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <div className="p-4 border-b space-y-3">
+              <input
+                type="text"
+                placeholder="Filtrar keywords..."
+                value={clusterKeywordFilter}
+                onChange={(e) => setClusterKeywordFilter(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={clusterKeywordSort}
+                  onChange={(e) => setClusterKeywordSort(e.target.value as 'keyword' | 'volume')}
+                  className="flex-1 border rounded px-2 py-1"
+                >
+                  <option value="keyword">Orden: Keyword (A-Z)</option>
+                  <option value="volume">Orden: Search Volume</option>
+                </select>
+                <select
+                  value={clusterKeywordOrder}
+                  onChange={(e) => setClusterKeywordOrder(e.target.value as 'asc' | 'desc')}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="desc">Mayor a menor</option>
+                  <option value="asc">Menor a mayor</option>
+                </select>
+              </div>
+              
+              {duplicatesInCluster.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-sm">
+                  <p className="font-medium text-yellow-800">Duplicados detectados:</p>
+                  <ul className="mt-1 space-y-1">
+                    {duplicatesInCluster.slice(0, 3).map(({ norm, originals }) => (
+                      <li key={norm} className="text-yellow-700 text-xs">
+                        {originals.join(' = ')}
+                      </li>
+                    ))}
+                  </ul>
+                  {duplicatesInCluster.length > 3 && (
+                    <p className="text-xs text-yellow-600 mt-1">
+                      ...y {duplicatesInCluster.length - 3} más
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {getSortedAndFilteredKeywords().map(k => (
+                <div 
+                  key={k.id}
+                  className={`p-3 border rounded flex items-start gap-3 ${
+                    !k.checked ? 'bg-gray-50 opacity-60' : ''
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={k.checked}
+                    onChange={() => toggleKeywordChecked(k.id)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <p className={`font-medium ${!k.checked ? 'line-through text-gray-500' : ''}`}>
+                      {k.keyword}
+                    </p>
+                    <div className="text-sm text-gray-500 mt-1">
+                      <span>Vol: {k.search_volume?.toLocaleString() || 0}</span>
+                      <span className="mx-2">·</span>
+                      <span>Diff: {k.difficulty || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {getSortedAndFilteredKeywords().length === 0 && (
+                <p className="text-center text-gray-500 py-8">
+                  No hay keywords que coincidan con el filtro
+                </p>
+              )}
+            </div>
+
+            <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
+              <p className="text-sm text-gray-600">
+                {clusterKeywords.filter(k => k.checked).length} de {clusterKeywords.length} seleccionadas
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={closeClusterEditor}
+                  className="px-4 py-2 border rounded hover:bg-gray-100"
+                  disabled={savingClusterKeywords}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveClusterKeywords}
+                  disabled={savingClusterKeywords}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {savingClusterKeywords ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Guardar'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
