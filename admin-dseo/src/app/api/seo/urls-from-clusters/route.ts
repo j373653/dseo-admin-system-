@@ -143,54 +143,108 @@ ${clustersInfo}
 URLs EXISTENTES (NO crear duplicados):
 ${existingUrls.length > 0 ? existingUrls.join('\n') : 'Ninguna'}
 
-INSTRUCCIONES:
-1. Para CADA cluster, crear al menos UNA página PILLAR (la más importante).
-2. El resto de keywords del cluster serán páginas SUPPORT (long-tail) que enlazan al pillar.
-3. Generar slugs SEO-friendly basados en la keyword principal.
+═══════════════════════════════════════════════════════════════════════════════
+NORMAS OBLIGATORIAS DE DISTRIBUCIÓN DE KEYWORDS (SEO ÓPTIMO - Topic Authority)
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 REGLAS DE DISTRIBUCIÓN (ESTRICTO - NO INFRINGIR):
+
+1. CADA keyword del cluster DEBE ser main_keyword en EXACTAMENTE UNA página.
+   - Una keyword NO puede ser main_keyword en 2 páginas diferentes.
+   - Esto causa CANIBALIZACIÓN y penaliza el SEO.
+
+2. PÁGINA PILLAR (1 por cluster):
+   - main_keyword: La keyword de MAYOR volumen/importancia del cluster (la más genérica/transaccional)
+   - secondary_keywords: SOLO 2-3 keywords secundarias más cercanas semánticamente
+   - content_difficulty: "guide" (>3000 palabras)
+   - Es la página hub que enlaza a todos los supports
+
+3. PÁGINAS DE SOPORTE (tantas como keywords secundarias restantes):
+   - Una página de soporte por cada keyword SECUNDARIA restante del cluster
+   - main_keyword: cada keyword secundaria (una página por cada una)
+   - secondary_keywords: [] (vacío) o MÁXIMO 1 keyword relacionada que NO sea main en otra página
+   - content_difficulty: "short" (<500 palabras) o "medium" (500-1500 palabras)
+
+4. EJEMPLO CORRECTO (4 keywords en cluster):
+   Cluster: ["agencia seo barcelona", "seo barcelona", "posicionamiento web barcelona", "auditoría seo barcelona"]
+   
+   PILLAR:
+     main_keyword: "agencia seo barcelona"
+     secondary_keywords: ["seo barcelona", "posicionamiento web barcelona"]
+     cluster_type: "pillar"
+     content_difficulty: "guide"
+   
+   SUPPORT 1:
+     main_keyword: "seo barcelona"
+     secondary_keywords: []
+     cluster_type: "support"
+   
+   SUPPORT 2:
+     main_keyword: "posicionamiento web barcelona"
+     secondary_keywords: []
+     cluster_type: "support"
+   
+   SUPPORT 3:
+     main_keyword: "auditoría seo barcelona"
+     secondary_keywords: []
+     cluster_type: "support"
+
+5. PROHIBIDO (CAUSARÁ CANIBALIZACIÓN):
+   ❌ Poner TODAS las secundarias en una sola support page
+   ❌ Que una keyword aparezca como main en 2+ páginas
+   ❌ Que el pillar tenga 10 secondary_keywords
+   ❌ Que los supports tengan muchas secondary_keywords
+
+═══════════════════════════════════════════════════════════════════════════════
+
+INSTRUCCIONES GENERALES:
+1. Generar slugs SEO-friendly basados en la main_keyword de cada página.
    - Formato: /categoria/subcategoria/keyword-slug
-   - Ej: /desarrollo-web/wordpress/crear-pagina-web
-4. Asignar:
-   - main_keyword: la keyword principal de la página
-   - secondary_keywords: resto de keywords del cluster que no son main
+   - Ej: /servicios/seo/agencia-seo-barcelona
+2. Asignar:
+   - pilar: Uno de los 4 pilares (ver abajo)
+   - categoria: Subdivisión temática
+   - slug: URL friendly
+   - main_keyword: Keyword principal de ESTA página
+   - secondary_keywords: Según reglas de distribución de arriba
    - cluster_type: "pillar" o "support"
-   - intent: Debes asignar el intent del cluster (informational, commercial_investigation, transactional, navigational)
-   - entity: entidad principal del cluster
-   - content_difficulty: short (<500w), medium (500-1500w), long (1500-3000w), guide (>3000w)
-   - internal_linking: array de slugs que esta página debe enlazar (al pillar del cluster y a otros relevantes)
-5. Agrupar páginas por PILARES (usar los 4 pilares de d-seo.es):
+   - intent: Del cluster (informational, commercial_investigation, transactional, navigational)
+   - entity: Entidad principal del cluster
+   - content_difficulty: "short", "medium", "long", o "guide"
+   - internal_linking: Array de slugs a enlazar (supports → pillar, y pillar → supports)
+3. Agrupar por PILARES de d-seo.es:
    - Desarrollo Web & E-commerce
    - Aplicaciones & Software
    - IA & Automatizaciones
    - SEO & Marketing Digital
-6. Cada pilar puede tener categorías (subdivisiones temáticas).
-7. NO duplicar slugs existentes. Si un slug ya existe, modify suffix (ej: /pagina-web → /pagina-web-2).
+4. NO duplicar slugs existentes. Si existe, añadir sufijo (-2, -3...).
 
 SALIDA JSON (estricto):
 {
   "urls": [
     {
       "pilar": "Desarrollo Web & E-commerce",
-      "categoria": "WordPress",
-      "slug": "/desarrollo-web/wordpress/crear-pagina-web",
-      "main_keyword": "crear pagina web",
-      "secondary_keywords": ["hacer pagina web", "diseño web"],
+      "categoria": "SEO",
+      "slug": "/servicios/seo/agencia-seo-barcelona",
+      "main_keyword": "agencia seo barcelona",
+      "secondary_keywords": ["seo barcelona", "posicionamiento web barcelona"],
       "cluster_type": "pillar",
       "intent": "transactional",
-      "entity": "Página Web",
-      "content_difficulty": "medium",
-      "internal_linking": ["/ia/automatizaciones/chatbot-ia"]
+      "entity": "Agencia SEO",
+      "content_difficulty": "guide",
+      "internal_linking": ["/servicios/seo/seo-barcelona", "/servicios/seo/posicionamiento-web-barcelona"]
     },
     {
       "pilar": "Desarrollo Web & E-commerce",
-      "categoria": "WordPress",
-      "slug": "/desarrollo-web/wordpress/crear-pagina-web-wordpress",
-      "main_keyword": "crear pagina web wordpress",
-      "secondary_keywords": ["wordpress madrid"],
+      "categoria": "SEO",
+      "slug": "/servicios/seo/seo-barcelona",
+      "main_keyword": "seo barcelona",
+      "secondary_keywords": [],
       "cluster_type": "support",
-      "intent": "transactional",
-      "entity": "WordPress",
-      "content_difficulty": "short",
-      "internal_linking": ["/desarrollo-web/wordpress/crear-pagina-web"]
+      "intent": "commercial_investigation",
+      "entity": "SEO",
+      "content_difficulty": "medium",
+      "internal_linking": ["/servicios/seo/agencia-seo-barcelona"]
     }
   ],
   "validation": {
@@ -202,8 +256,9 @@ SALIDA JSON (estricto):
 
 IMPORTANTE:
 - Devuelve EXCLUSIVAMENTE el JSON, sin texto adicional.
-- Asegura que todos los clusters tengan al menos una página PILLAR.
-- Usa la entidad para categorizar correctamente.
+- CADA keyword del cluster debe ser main_keyword en EXACTAMENTE una página.
+- Pillar: main + 2-3 secundarias. Support: main + 0-1 secundarias.
+- NO causes canibalización.
 - Respeta las URLs existentes.
 - Genera slugs únicos y legibles.`
 }

@@ -44,6 +44,20 @@ Nota de Carpetas: El código está en admin-dseo/ y d-seo-web/, pero tu llave pa
 - **Web:** Next.js 13.5.6, Framer Motion, Three.js.
 - **IA:** Gemini 2.5 Flash/Pro + Embeddings (Ver `/docs/AI_MODELS_GUIDE.md`).
 
+## 📏 Norma: Distribución de Keywords en URLs (Topic Authority)
+
+**OBLIGATORIO para cualquier generación de URLs desde clusters:**
+
+1. **UNA keyword = UNA página como main_keyword** (sin excepciones)
+2. **PILLAR**: main + 2-3 secondary_keywords (las más cercanas semánticamente)
+3. **SUPPORT**: Una página por cada keyword secundaria restante. main + 0-1 secondary_keywords
+4. **PROHIBIDO**: Canibalización (misma keyword como main en múltiples páginas)
+
+**Archivo donde se aplica:**
+- `admin-dseo/src/app/api/seo/urls-from-clusters/route.ts` (función `buildUrlsPrompt()`)
+
+**Más detalles en memoria Supabase** (categoría 'regla', scope 'global').
+
 ---
 > *Este documento es tu 'ADN' de comportamiento. El conocimiento detallado vive en tu memoria de Supabase.*
 ## Regla de Despliegue
